@@ -20,5 +20,5 @@
   "wrappers/ShadowRoot.js",
   "ShadowRenderer.js",
   "wrappers/Document.js",
-  "wrappers/Window.js",
+  "wrappers/Window.js"
 ]
