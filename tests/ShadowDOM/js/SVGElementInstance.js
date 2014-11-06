@@ -42,7 +42,7 @@ suite('SVGElementInstance', function() {
     assert.instanceOf(useElement, SVGUseElement);
     assert.instanceOf(useElement, SVGElement);
     assert.instanceOf(useElement, Element);
-    assert.instanceOf(useElement, EventTarget);
+    assertEventTarget(useElement);
   });
 
   test('instanceof SVGElementInstance', function() {
@@ -57,7 +57,7 @@ suite('SVGElementInstance', function() {
       return;
 
     assert.instanceOf(instanceRoot, SVGElementInstance);
-    assert.instanceOf(instanceRoot, EventTarget);
+    assertEventTarget(instanceRoot);
   });
 
   test('correspondingUseElement', function() {

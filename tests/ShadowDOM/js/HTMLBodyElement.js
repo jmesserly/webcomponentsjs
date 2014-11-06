@@ -88,19 +88,18 @@ htmlSuite('HTMLBodyElement', function() {
 
   test('dispatchEvent', function() {
     var calls = 0;
-    var doc = wrap(document);
     var f;
     document.body.addEventListener('x', f = function(e) {
       calls++;
-      assert.equal(e.target, doc.body);
-      assert.equal(e.currentTarget, doc.body);
-      assert.equal(this, doc.body);
+      assert.equal(e.target, document.body);
+      assert.equal(e.currentTarget, document.body);
+      assert.equal(this, document.body);
       if (calls === 2)
         document.body.removeEventListener('x', f);
     });
 
     document.body.dispatchEvent(new Event('x'));
-    doc.body.dispatchEvent(new Event('x'));
+    document.body.dispatchEvent(new Event('x'));
 
     assert.equal(calls, 2);
   });

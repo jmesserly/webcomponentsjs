@@ -5,21 +5,12 @@
 (function(scope) {
   'use strict';
 
-  var CharacterData = scope.wrappers.CharacterData;
-  var enqueueMutation = scope.enqueueMutation;
   var mixin = scope.mixin;
-  var registerWrapper = scope.registerWrapper;
 
   function toUInt32(x) {
     return x >>> 0;
   }
 
-  var OriginalText = window.Text;
-
-  function Text(node) {
-    CharacterData.call(this, node);
-  }
-  Text.prototype = Object.create(CharacterData.prototype);
   mixin(Text.prototype, {
     splitText: function(offset) {
       offset = toUInt32(offset);
@@ -36,7 +27,4 @@
     }
   });
 
-  registerWrapper(OriginalText, Text, document.createTextNode(''));
-
-  scope.wrappers.Text = Text;
 })(window.ShadowDOMPolyfill);

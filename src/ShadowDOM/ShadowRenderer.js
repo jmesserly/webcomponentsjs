@@ -5,18 +5,14 @@
 (function(scope) {
   'use strict';
 
-  var Element = scope.wrappers.Element;
-  var HTMLContentElement = scope.wrappers.HTMLContentElement;
-  var HTMLShadowElement = scope.wrappers.HTMLShadowElement;
-  var Node = scope.wrappers.Node;
-  var ShadowRoot = scope.wrappers.ShadowRoot;
+  var HTMLContentElement = scope.HTMLContentElement;
+  var HTMLShadowElement = scope.HTMLShadowElement;
+  var Node = window.Node;
+  var ShadowRoot = window.ShadowRoot;
   var assert = scope.assert;
-  var getTreeScope = scope.getTreeScope;
+  var isInsertionPoint = scope.isInsertionPoint;
   var mixin = scope.mixin;
   var oneOf = scope.oneOf;
-  var unsafeUnwrap = scope.unsafeUnwrap;
-  var unwrap = scope.unwrap;
-  var wrap = scope.wrap;
   var ArraySplice = scope.ArraySplice;
 
   /**
@@ -25,78 +21,53 @@
    * Sideways means previous and next sibling.
    * @param {!Node} wrapper
    */
-  function updateWrapperUpAndSideways(wrapper) {
-    wrapper.previousSibling_ = wrapper.previousSibling;
-    wrapper.nextSibling_ = wrapper.nextSibling;
-    wrapper.parentNode_ = wrapper.parentNode;
+  function updateVirtualUpAndSideways(node) {
+    node.previousSibling_ = node.previousSibling;
+    node.nextSibling_ = node.nextSibling;
+    node.parentNode_ = node.parentNode;
   }
 
-  /**
-   * Updates the fields of a wrapper to a snapshot of the logical DOM as needed.
-   * Down means first and last child
-   * @param {!Node} wrapper
-   */
-  function updateWrapperDown(wrapper) {
-    wrapper.firstChild_ = wrapper.firstChild;
-    wrapper.lastChild_ = wrapper.lastChild;
-  }
+  function insertBefore(parentNode, newChild, refChild) {
 
-  function updateAllChildNodes(parentNodeWrapper) {
-    assert(parentNodeWrapper instanceof Node);
-    for (var childWrapper = parentNodeWrapper.firstChild;
-         childWrapper;
-         childWrapper = childWrapper.nextSibling) {
-      updateWrapperUpAndSideways(childWrapper);
-    }
-    updateWrapperDown(parentNodeWrapper);
-  }
+    remove(newChild);
+    updateVirtualUpAndSideways(newChild);
 
-  function insertBefore(parentNodeWrapper, newChildWrapper, refChildWrapper) {
-    var parentNode = unwrap(parentNodeWrapper);
-    var newChild = unwrap(newChildWrapper);
-    var refChild = refChildWrapper ? unwrap(refChildWrapper) : null;
+    if (!refChild) {
+      parentNode.lastChild_ = parentNode.lastChild;
+      if (parentNode.lastChild === parentNode.firstChild)
+        parentNode.firstChild_ = parentNode.firstChild;
 
-    remove(newChildWrapper);
-    updateWrapperUpAndSideways(newChildWrapper);
-
-    if (!refChildWrapper) {
-      parentNodeWrapper.lastChild_ = parentNodeWrapper.lastChild;
-      if (parentNodeWrapper.lastChild === parentNodeWrapper.firstChild)
-        parentNodeWrapper.firstChild_ = parentNodeWrapper.firstChild;
-
-      var lastChildWrapper = wrap(parentNode.lastChild);
-      if (lastChildWrapper)
-        lastChildWrapper.nextSibling_ = lastChildWrapper.nextSibling;
+      var lastChild = parentNode.visualLastChild_;
+      if (lastChild)
+        lastChild.nextSibling_ = lastChild.nextSibling;
     } else {
-      if (parentNodeWrapper.firstChild === refChildWrapper)
-        parentNodeWrapper.firstChild_ = refChildWrapper;
+      if (parentNode.firstChild === refChild)
+        parentNode.firstChild_ = refChild;
 
-      refChildWrapper.previousSibling_ = refChildWrapper.previousSibling;
+      refChild.previousSibling_ = refChild.previousSibling;
     }
 
-    scope.originalInsertBefore.call(parentNode, newChild, refChild);
+    parentNode.visualInsertBefore_(newChild, refChild);
   }
 
-  function remove(nodeWrapper) {
-    var node = unwrap(nodeWrapper)
-    var parentNode = node.parentNode;
+  function remove(node) {
+    var parentNode = node.visualParentNode_;
     if (!parentNode)
       return;
 
-    var parentNodeWrapper = wrap(parentNode);
-    updateWrapperUpAndSideways(nodeWrapper);
+    updateVirtualUpAndSideways(node);
 
-    if (nodeWrapper.previousSibling)
-      nodeWrapper.previousSibling.nextSibling_ = nodeWrapper;
-    if (nodeWrapper.nextSibling)
-      nodeWrapper.nextSibling.previousSibling_ = nodeWrapper;
+    if (node.previousSibling)
+      node.previousSibling.nextSibling_ = node;
+    if (node.nextSibling)
+      node.nextSibling.previousSibling_ = node;
 
-    if (parentNodeWrapper.lastChild === nodeWrapper)
-      parentNodeWrapper.lastChild_ = nodeWrapper;
-    if (parentNodeWrapper.firstChild === nodeWrapper)
-      parentNodeWrapper.firstChild_ = nodeWrapper;
+    if (parentNode.lastChild === node)
+      parentNode.lastChild_ = node;
+    if (parentNode.firstChild === node)
+      parentNode.firstChild_ = node;
 
-    scope.originalRemoveChild.call(parentNode, node);
+    parentNode.visualRemoveChild_(node);
   }
 
   var distributedNodesTable = new WeakMap();
@@ -114,9 +85,10 @@
     return rv;
   }
 
-  function getChildNodesSnapshot(node) {
+  function getVisualChildNodesSnapshot(node) {
     var result = [], i = 0;
-    for (var child = node.firstChild; child; child = child.nextSibling) {
+    for (var child = node.visualFirstChild_; child;
+        child = child.visualNextSibling_) {
       result[i++] = child;
     }
     return result;
@@ -165,20 +137,9 @@
     return renderer;
   }
 
-  function getShadowRootAncestor(node) {
-    var root = getTreeScope(node).root;
-    if (root instanceof ShadowRoot)
-      return root;
-    return null;
-  }
-
-  function getRendererForShadowRoot(shadowRoot) {
-    return getRendererForHost(shadowRoot.host);
-  }
-
   var spliceDiff = new ArraySplice();
   spliceDiff.equals = function(renderNode, rawNode) {
-    return unwrap(renderNode.node) === rawNode;
+    return renderNode.node === rawNode;
   };
 
   /**
@@ -203,11 +164,11 @@
       if (this.skip)
         return;
 
-      var nodeWrapper = this.node;
+      var node = this.node;
       // plain array of RenderNodes
       var newChildren = this.childNodes;
       // plain array of real nodes.
-      var oldChildren = getChildNodesSnapshot(unwrap(nodeWrapper));
+      var oldChildren = getVisualChildNodesSnapshot(node);
       var added = opt_added || new WeakMap();
 
       var splices = spliceDiff.calculateSplices(newChildren, oldChildren);
@@ -223,21 +184,21 @@
 
         var removedCount = splice.removed.length;
         for (var j = 0; j < removedCount; j++) {
-          var wrapper = wrap(oldChildren[oldIndex++]);
-          if (!added.get(wrapper))
-            remove(wrapper);
+          var oldChild = oldChildren[oldIndex++];
+          if (!added.get(oldChild))
+            remove(oldChild);
         }
 
         var addedCount = splice.addedCount;
-        var refNode = oldChildren[oldIndex] && wrap(oldChildren[oldIndex]);
+        var refNode = oldChildren[oldIndex];
         for (var j = 0; j < addedCount; j++) {
           var newChildRenderNode = newChildren[newIndex++];
-          var newChildWrapper = newChildRenderNode.node;
-          insertBefore(nodeWrapper, newChildWrapper, refNode);
+          var newChild = newChildRenderNode.node;
+          insertBefore(node, newChild, refNode);
 
           // Keep track of added so that we do not remove the node after it
           // has been added.
-          added.set(newChildWrapper, true);
+          added.set(newChild, true);
 
           newChildRenderNode.sync(added);
         }
@@ -281,7 +242,8 @@
     },
 
     get parentRenderer() {
-      return getTreeScope(this.host).renderer;
+      var root = this.host.ownerShadowRoot_;
+      return root ? scope.getRendererForHost(root.host) : null;
     },
 
     invalidate: function() {
@@ -362,7 +324,7 @@
             // 1.3.2.2
             for (var j = 0; j < pool.length; j++) {
               // 1.3.2.2.1
-              destributeNodeInto(pool[j], shadow);
+              distributeNodeInto(pool[j], shadow);
             }
           }
 
@@ -378,10 +340,10 @@
 
     // http://w3c.github.io/webcomponents/spec/shadow/#dfn-pool-distribution-algorithm
     poolDistribution: function (node, pool) {
-      if (node instanceof HTMLShadowElement)
+      if (node.localName == 'shadow')
         return;
 
-      if (node instanceof HTMLContentElement) {
+      if (node.localName == 'content') {
         var content = node;
         this.updateDependentAttributes(content.getAttribute('select'));
 
@@ -393,7 +355,7 @@
           if (!node)
             continue;
           if (matches(node, content)) {
-            destributeNodeInto(node, content);
+            distributeNodeInto(node, content);
             pool[i] = undefined;
             anyDistributed = true;
           }
@@ -405,7 +367,7 @@
           for (var child = content.firstChild;
                child;
                child = child.nextSibling) {
-            destributeNodeInto(child, content);
+            distributeNodeInto(child, content);
           }
         }
 
@@ -490,7 +452,7 @@
     },
 
     associateNode: function(node) {
-      unsafeUnwrap(node).polymerShadowRenderer_ = this;
+      node.polymerShadowRenderer_ = this;
     }
   };
 
@@ -508,9 +470,9 @@
   }
 
   function getShadowInsertionPoint(node) {
-    if (node instanceof HTMLShadowElement)
+    if (node.localName == 'shadow')
       return node;
-    if (node instanceof HTMLContentElement)
+    if (node.localName == 'content')
       return null;
     for (var child = node.firstChild; child; child = child.nextSibling) {
       var res = getShadowInsertionPoint(child);
@@ -520,7 +482,7 @@
     return null;
   }
 
-  function destributeNodeInto(child, insertionPoint) {
+  function distributeNodeInto(child, insertionPoint) {
     getDistributedNodes(insertionPoint).push(child);
     var points = destinationInsertionPointsTable.get(child);
     if (!points)
@@ -576,11 +538,6 @@
     return points && points[points.length - 1] === insertionPoint;
   }
 
-  function isInsertionPoint(node) {
-    return node instanceof HTMLContentElement ||
-           node instanceof HTMLShadowElement;
-  }
-
   function isShadowHost(shadowHost) {
     return shadowHost.shadowRoot;
   }
@@ -596,10 +553,6 @@
     return trees;
   }
 
-  function render(host) {
-    new ShadowRenderer(host).render();
-  };
-
   // Need to rerender shadow host when:
   //
   // - a direct child to the ShadowRoot is added or removed
@@ -613,8 +566,8 @@
   /**
    * This gets called when a node was added or removed to it.
    */
-  Node.prototype.invalidateShadowRenderer = function(force) {
-    var renderer = unsafeUnwrap(this).polymerShadowRenderer_;
+  Node.prototype.invalidateShadowRenderer_ = function() {
+    var renderer = this.polymerShadowRenderer_;
     if (renderer) {
       renderer.invalidate();
       return true;
@@ -625,29 +578,21 @@
 
   HTMLContentElement.prototype.getDistributedNodes =
   HTMLShadowElement.prototype.getDistributedNodes = function() {
+    if (!isInsertionPoint(this)) {
+      throw new TypeError(
+          'getDistributedNodes only supported on content or shadow');
+    }
+
     // TODO(arv): We should only rerender the dirty ancestor renderers (from
     // the root and down).
     renderAllPending();
     return getDistributedNodes(this);
   };
 
+
   Element.prototype.getDestinationInsertionPoints = function() {
     renderAllPending();
     return getDestinationInsertionPoints(this) || [];
-  };
-
-  HTMLContentElement.prototype.nodeIsInserted_ =
-  HTMLShadowElement.prototype.nodeIsInserted_ = function() {
-    // Invalidate old renderer if any.
-    this.invalidateShadowRenderer();
-
-    var shadowRoot = getShadowRootAncestor(this);
-    var renderer;
-    if (shadowRoot)
-      renderer = getRendererForShadowRoot(shadowRoot);
-    unsafeUnwrap(this).polymerShadowRenderer_ = renderer;
-    if (renderer)
-      renderer.invalidate();
   };
 
   scope.getRendererForHost = getRendererForHost;

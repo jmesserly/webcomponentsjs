@@ -6,16 +6,12 @@
   'use strict';
 
   var Element = scope.wrappers.Element;
+  var HTMLTemplateElement = window.HTMLTemplateElement;
   var defineGetter = scope.defineGetter;
-  var enqueueMutation = scope.enqueueMutation;
+  var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   var mixin = scope.mixin;
-  var nodesWereAdded = scope.nodesWereAdded;
   var nodesWereRemoved = scope.nodesWereRemoved;
-  var registerWrapper = scope.registerWrapper;
   var snapshotNodeList = scope.snapshotNodeList;
-  var unsafeUnwrap = scope.unsafeUnwrap;
-  var unwrap = scope.unwrap;
-  var wrap = scope.wrap;
   var wrappers = scope.wrappers;
 
   /////////////////////////////////////////////////////////////////////////////
@@ -113,12 +109,13 @@
 
       default:
         console.error(node);
-        throw new Error('not implemented');
+        throw new Error('not implemented node type: ' + node.nodeType);
     }
   }
 
   function getInnerHTML(node) {
-    if (node instanceof wrappers.HTMLTemplateElement)
+    // TODO(jmesserly): ideally we could use `instanceof HTMLTemplateElement`
+    if (node.localName == 'template')
       node = node.content;
 
     var s = '';
@@ -131,25 +128,46 @@
   function setInnerHTML(node, value, opt_tagName) {
     var tagName = opt_tagName || 'div';
     node.textContent = '';
-    var tempElement = unwrap(node.ownerDocument.createElement(tagName));
-    tempElement.innerHTML = value;
+    var tempElement = node.ownerDocument.createElement(tagName);
+    tempElement.visualInnerHTML_ = value;
     var firstChild;
-    while (firstChild = tempElement.firstChild) {
-      node.appendChild(wrap(firstChild));
+    while (firstChild = tempElement.visualFirstChild_) {
+      node.appendChild(firstChild);
     }
   }
 
   // IE11 does not have MSIE in the user agent string.
   var oldIe = /MSIE/.test(navigator.userAgent);
 
-  var OriginalHTMLElement = window.HTMLElement;
-  var OriginalHTMLTemplateElement = window.HTMLTemplateElement;
+  var HTMLElement = window.HTMLElement;
+  var Element = window.Element;
 
-  function HTMLElement(node) {
-    Element.call(this, node);
+  // Note: check both HTMLElement and Element because the properties are moving.
+  function copyElementProperty(oldName, newName) {
+    var proto = Element.prototype;
+    var property = Object.getOwnPropertyDescriptor(proto, oldName);
+    if (!property) {
+      proto = HTMLElement.prototype;
+      property = Object.getOwnPropertyDescriptor(proto, oldName);
+    }
+
+    Object.defineProperty(proto, newName, property);
   }
-  HTMLElement.prototype = Object.create(Element.prototype);
+
+  copyElementProperty('innerHTML', 'visualInnerHTML_');
+  copyElementProperty('outerHTML', 'visualOuterHTML_');
+  copyElementProperty('className', 'originalClassName_');
+
   mixin(HTMLElement.prototype, {
+    
+    get className() {
+      return this.originalClassName_;
+    },
+
+    set className(v) {
+      this.setAttribute('class', v);
+    },
+
     get innerHTML() {
       return getInnerHTML(this);
     },
@@ -165,10 +183,12 @@
         return;
       }
 
-      var removedNodes = snapshotNodeList(this.childNodes);
+      var root = this.ownerShadowRoot_;
+      var removedNodes;
+      if (root) removedNodes = snapshotNodeList(this.childNodes);
 
-      if (this.invalidateShadowRenderer()) {
-        if (this instanceof wrappers.HTMLTemplateElement)
+      if (this.invalidateShadowRenderer_()) {
+        if (this.localName == 'template')
           setInnerHTML(this.content, value);
         else
           setInnerHTML(this, value, this.tagName);
@@ -176,22 +196,16 @@
       // If we have a non native template element we need to handle this
       // manually since setting impl.innerHTML would add the html as direct
       // children and not be moved over to the content fragment.
-      } else if (!OriginalHTMLTemplateElement &&
-                 this instanceof wrappers.HTMLTemplateElement) {
+      } else if (!HTMLTemplateElement && this.localName == 'template') {
         setInnerHTML(this.content, value);
       } else {
-        unsafeUnwrap(this).innerHTML = value;
+        this.visualInnerHTML_ = value;
       }
 
-      var addedNodes = snapshotNodeList(this.childNodes);
-
-      enqueueMutation(this, 'childList', {
-        addedNodes: addedNodes,
-        removedNodes: removedNodes
-      });
-
-      nodesWereRemoved(removedNodes);
-      nodesWereAdded(addedNodes, this);
+      if (root) {
+        nodesWereRemoved(removedNodes);
+        root.nodesWereAdded_(this.childNodes);
+      }
     },
 
     get outerHTML() {
@@ -200,7 +214,7 @@
     set outerHTML(value) {
       var p = this.parentNode;
       if (p) {
-        p.invalidateShadowRenderer();
+        p.invalidateShadowRenderer_();
         var df = frag(p, value);
         p.replaceChild(df, this);
       }
@@ -247,25 +261,34 @@
 
   function frag(contextElement, html) {
     // TODO(arv): This does not work with SVG and other non HTML elements.
-    var p = unwrap(contextElement.cloneNode(false));
-    p.innerHTML = html;
-    var df = unwrap(document.createDocumentFragment());
+    var p = contextElement.cloneNode(false);
+    p.visualInnerHTML_ = html;
+    var df = document.createDocumentFragment();
     var c;
-    while (c = p.firstChild) {
-      df.appendChild(c);
+    while (c = p.visualFirstChild_) {
+      df.visualAppendChild_(c);
     }
-    return wrap(df);
+    return df;
   }
 
-  function getter(name) {
+  function getter(original) {
     return function() {
       scope.renderAllPending();
-      return unsafeUnwrap(this)[name];
+      return original.call(this);
+    };
+  }
+
+  function setter(original) {
+    return function(v) {
+      scope.renderAllPending();
+      original.call(this, v);
     };
   }
 
   function getterRequiresRendering(name) {
-    defineGetter(HTMLElement, name, getter(name));
+    var original = getOwnPropertyDescriptor(HTMLElement.prototype, name) ||
+        getOwnPropertyDescriptor(Element.prototype, name);
+    defineGetter(HTMLElement, name, getter(original.get));
   }
 
   [
@@ -282,15 +305,11 @@
   ].forEach(getterRequiresRendering);
 
   function getterAndSetterRequiresRendering(name) {
-    Object.defineProperty(HTMLElement.prototype, name, {
-      get: getter(name),
-      set: function(v) {
-        scope.renderAllPending();
-        unsafeUnwrap(this)[name] = v;
-      },
-      configurable: true,
-      enumerable: true
-    });
+    var original = getOwnPropertyDescriptor(HTMLElement.prototype, name) ||
+        getOwnPropertyDescriptor(Element.prototype, name);
+    original.get = getter(original.get);
+    original.set = setter(original.set);
+    Object.defineProperty(HTMLElement.prototype, name, original);
   }
 
   [
@@ -299,10 +318,12 @@
   ].forEach(getterAndSetterRequiresRendering);
 
   function methodRequiresRendering(name) {
+    var originalMethod = HTMLElement.prototype[name] ||
+        Element.prototype[name];
     Object.defineProperty(HTMLElement.prototype, name, {
       value: function() {
         scope.renderAllPending();
-        return unsafeUnwrap(this)[name].apply(unsafeUnwrap(this), arguments);
+        return originalMethod.apply(this, arguments);
       },
       configurable: true,
       enumerable: true
@@ -314,12 +335,6 @@
     'getClientRects',
     'scrollIntoView'
   ].forEach(methodRequiresRendering);
-
-  // HTMLElement is abstract so we use a subclass that has no members.
-  registerWrapper(OriginalHTMLElement, HTMLElement,
-                  document.createElement('b'));
-
-  scope.wrappers.HTMLElement = HTMLElement;
 
   // TODO: Find a better way to share these two with WrapperShadowRoot.
   scope.getInnerHTML = getInnerHTML;

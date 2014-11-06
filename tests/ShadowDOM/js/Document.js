@@ -7,6 +7,7 @@
 htmlSuite('Document', function() {
 
   var wrap = ShadowDOMPolyfill.wrap;
+  var unwrap = ShadowDOMPolyfill.unwrap;
 
   var div;
   teardown(function() {
@@ -51,16 +52,19 @@ htmlSuite('Document', function() {
 
   test('getElementsByTagName', function() {
     var elements = document.getElementsByTagName('body');
-    assert.isTrue(elements instanceof HTMLCollection);
+    // Node: this should be HTMLCollection instead of NodeList, but we can't
+    // replace window.HTMLCollection with a JS version without invalidating
+    // other type checks.
+    assert.isTrue(elements instanceof NodeList);
     assert.equal(elements.length, 1);
-    assert.isTrue(elements[0] instanceof HTMLElement);
+    assert.isTrue(wrap(elements[0]) instanceof HTMLElement);
 
     var doc = wrap(document);
-    assert.equal(doc.body, elements[0]);
-    assert.equal(doc.body, elements.item(0));
+    assert.equal(document.body, elements[0]);
+    assert.equal(document.body, elements.item(0));
 
     var elements2 = doc.getElementsByTagName('body');
-    assert.isTrue(elements2 instanceof HTMLCollection);
+    assert.isTrue(elements2 instanceof NodeList);
     assert.equal(elements2.length, 1);
     assert.isTrue(elements2[0] instanceof HTMLElement);
     assert.equal(doc.body, elements2[0]);
@@ -80,7 +84,7 @@ htmlSuite('Document', function() {
 
     div.offsetHeight;
 
-    var elements = document.getElementsByTagName('aa');
+    var elements = doc.getElementsByTagName('aa');
     assert.equal(elements.length, 2);
     assert.equal(elements[0], aa1);
     assert.equal(elements[1], aa2);
@@ -149,10 +153,10 @@ htmlSuite('Document', function() {
     var elements = document.querySelectorAll('body');
     assert.isTrue(elements instanceof NodeList);
     assert.equal(elements.length, 1);
-    assert.isTrue(elements[0] instanceof HTMLElement);
+    assert.isTrue(wrap(elements[0]) instanceof HTMLElement);
 
     var doc = wrap(document);
-    assert.equal(doc.body, elements[0]);
+    assert.equal(document.body, elements[0]);
 
     var elements2 = doc.querySelectorAll('body');
     assert.isTrue(elements2 instanceof NodeList);
@@ -174,7 +178,7 @@ htmlSuite('Document', function() {
 
     div.offsetHeight;
 
-    var elements = document.querySelectorAll('aa');
+    var elements = doc.querySelectorAll('aa');
     assert.equal(elements.length, 2);
     assert.equal(elements[0], aa1);
     assert.equal(elements[1], aa2);
@@ -233,7 +237,7 @@ htmlSuite('Document', function() {
 
   test('addEventListener', function() {
     var calls = 0;
-    var doc = wrap(document);
+    var doc = document;
     document.addEventListener('click', function f(e) {
       calls++;
       assert.equal(this, doc);
@@ -241,19 +245,12 @@ htmlSuite('Document', function() {
       assert.equal(e.currentTarget, this);
       document.removeEventListener('click', f);
     });
-    doc.addEventListener('click', function f(e) {
-      calls++;
-      assert.equal(this, doc);
-      assert.equal(e.target, doc.body);
-      assert.equal(e.currentTarget, this);
-      doc.removeEventListener('click', f);
-    });
 
     document.body.click();
-    assert.equal(2, calls);
+    assert.equal(1, calls);
 
     document.body.click();
-    assert.equal(2, calls);
+    assert.equal(1, calls);
   });
 
   test('adoptNode', function() {
@@ -262,7 +259,7 @@ htmlSuite('Document', function() {
     var div = doc2.createElement('div');
     assert.equal(div.ownerDocument, doc2);
 
-    var div2 = document.adoptNode(div);
+    var div2 = doc.adoptNode(div);
     assert.equal(div, div2);
     assert.equal(div.ownerDocument, doc);
 
@@ -313,7 +310,7 @@ htmlSuite('Document', function() {
     div.innerHTML = 'test';
     assert.equal(div.ownerDocument, doc2);
 
-    var div2 = document.importNode(div, true);
+    var div2 = doc.importNode(div, true);
     assert.equal(div.innerHTML, div2.innerHTML);
     assert.equal(div2.ownerDocument, doc);
 
@@ -334,7 +331,7 @@ htmlSuite('Document', function() {
 
     assert.equal(div.ownerDocument, doc2);
 
-    var div2 = document.importNode(div, true);
+    var div2 = doc.importNode(div, true);
     assert.equal(div.innerHTML, div2.innerHTML);
     assert.equal(div2.ownerDocument, doc);
 
@@ -344,18 +341,15 @@ htmlSuite('Document', function() {
   });
 
   test('elementFromPoint', function() {
-    div = document.body.appendChild(document.createElement('div'));
+    div = unwrap(document.body.appendChild(document.createElement('div')));
     div.style.cssText = 'position: fixed; background: green; ' +
                         'width: 10px; height: 10px; top: 0; left: 0;';
 
     assert.equal(document.elementFromPoint(5, 5), div);
-
-    var doc = wrap(document);
-    assert.equal(doc.elementFromPoint(5, 5), div);
   });
 
   test('elementFromPoint in shadow', function() {
-    div = document.body.appendChild(document.createElement('div'));
+    div = unwrap(document.body.appendChild(document.createElement('div')));
     div.style.cssText = 'position: fixed; background: red; ' +
                         'width: 10px; height: 10px; top: 0; left: 0;';
     var sr = div.createShadowRoot();
@@ -365,9 +359,6 @@ htmlSuite('Document', function() {
                       'background: green';
 
     assert.equal(document.elementFromPoint(5, 5), div);
-
-    var doc = wrap(document);
-    assert.equal(doc.elementFromPoint(5, 5), div);
   });
 
   test('elementFromPoint null', function() {

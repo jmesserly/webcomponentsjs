@@ -44,7 +44,10 @@
 
   function htmlTeardown() {
     window.removeEventListener('message', listener);
-    document.body.removeChild(iframe);
+    if (iframe) {
+      document.body.removeChild(iframe);
+      iframe = null;
+    }
   }
 
   function htmlTest(src) {

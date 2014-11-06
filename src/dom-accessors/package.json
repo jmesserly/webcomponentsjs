@@ -1,0 +1,18 @@
+{
+  "name": "dom-accessors",
+  "version": "0.0.0",
+  "description": "polyfill for EcmaScript accessors on DOM nodes. Use as either a development server or as a grunt build step. It is implemented as a fast code transform, like a minifier. Not needed on newer Firefox or Internet Explorer builds.",
+  "main": "src/dom-accessors.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "BSD",
+  "devDependencies": {
+    "connect": "~3.2.0",
+    "serve-static": "~1.6.2",
+    "serve-index": "~1.3.0",
+    "connect-static-transform": "~0.7.0",
+    "esprima": "~1.2.2"
+  }
+}

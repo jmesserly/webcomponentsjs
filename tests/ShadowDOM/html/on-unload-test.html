@@ -14,7 +14,7 @@ function runTest() {
   var win = ShadowDOMPolyfill.wrap(window);
 
   // Note: IE gives `window` as the target for beforeunload/unload. Others give
-  // document. It's not clear than anyone gets it right, my reading of the
+  // document. It's not clear that anyone gets it right, my reading of the
   // current spec is target should be window for beforeunload, but is overridden
   // to be document for unload. Both events are dispatched on window:
   // http://www.whatwg.org/specs/web-apps/current-work/multipage/browsers.html#unloading-documents

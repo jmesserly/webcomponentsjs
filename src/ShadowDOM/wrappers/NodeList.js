@@ -5,9 +5,6 @@
 (function(scope) {
   'use strict';
 
-  var unsafeUnwrap = scope.unsafeUnwrap;
-  var wrap = scope.wrap;
-
   var nonEnumDescriptor = {enumerable: false};
 
   function nonEnum(obj, prop) {
@@ -25,26 +22,11 @@
   };
   nonEnum(NodeList.prototype, 'item');
 
-  function wrapNodeList(list) {
-    if (list == null)
-      return list;
-    var wrapperList = new NodeList();
-    for (var i = 0, length = list.length; i < length; i++) {
-      wrapperList[i] = wrap(list[i]);
-    }
-    wrapperList.length = length;
-    return wrapperList;
-  }
-
-  function addWrapNodeListMethod(wrapperConstructor, name) {
-    wrapperConstructor.prototype[name] = function() {
-      return wrapNodeList(
-          unsafeUnwrap(this)[name].apply(unsafeUnwrap(this), arguments));
-    };
-  }
-
   scope.wrappers.NodeList = NodeList;
-  scope.addWrapNodeListMethod = addWrapNodeListMethod;
-  scope.wrapNodeList = wrapNodeList;
+
+  // TODO(jmesserly): this is a bit sketchy. We can't create real NodeLists, so
+  // we probably shouldn't be lying about ours. Probably we should move this
+  // only to tests.
+  window.NodeList = NodeList;
 
 })(window.ShadowDOMPolyfill);

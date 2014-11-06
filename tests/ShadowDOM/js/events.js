@@ -27,14 +27,14 @@ htmlSuite('Events', function() {
         false,  // metaKeyArg
         0,  // buttonArg
         relatedTarget);  // relatedTargetArg
-    return event;
+    return unwrap(event);
   }
 
   var div, a, b, c, d, e, f, content, sr;
 
   function createTestTree() {
-    var doc = wrap(document);
-    div = doc.createElement('div');
+    var doc = document;
+    div = unwrap(doc.createElement('div'));
     div.innerHTML = '<a></a><b><c></c><d></d></b>';
     a = div.firstChild;
     b = div.lastChild;
@@ -63,7 +63,7 @@ htmlSuite('Events', function() {
 
   test('addEventListener', function() {
     div = document.createElement('div');
-    wrap(document).body.appendChild(div);
+    document.body.appendChild(div);
     var div1 = div.appendChild(document.createElement('div'));
     var div2 = div.appendChild(document.createElement('div'));
     var calls = 0;
@@ -93,7 +93,7 @@ htmlSuite('Events', function() {
 
   test('removeEventListener', function() {
     div = document.createElement('div');
-    wrap(document).body.appendChild(div);
+    document.body.appendChild(div);
     var calls = 0;
     function f(e) {
       calls++;
@@ -132,7 +132,7 @@ htmlSuite('Events', function() {
   });
 
   test('event', function() {
-    var div = document.createElement('div');
+    var div = unwrap(document.createElement('div'));
     var calls = 0;
     var f;
     div.addEventListener('x', f = function(e) {
@@ -155,8 +155,8 @@ htmlSuite('Events', function() {
   });
 
   test('mouse event', function() {
-    div = document.createElement('div');
-    wrap(document).body.appendChild(div);
+    div = unwrap(document.createElement('div'));
+    document.body.appendChild(div);
     var called = false;
     div.addEventListener('click', function(e) {
       called = true;
@@ -171,7 +171,7 @@ htmlSuite('Events', function() {
   });
 
   test('stopPropagation', function() {
-    var a = document.createElement('a');
+    var a = unwrap(document.createElement('a'));
     a.innerHTML = '<b><c>d</c></b>';
     var b = a.firstChild;
     var c = b.firstChild;
@@ -207,7 +207,7 @@ htmlSuite('Events', function() {
   });
 
   test('stopPropagation during bubble', function() {
-    var a = document.createElement('a');
+    var a = unwrap(document.createElement('a'));
     a.innerHTML = '<b><c>d</c></b>';
     var b = a.firstChild;
     var c = b.firstChild;
@@ -249,7 +249,7 @@ htmlSuite('Events', function() {
   });
 
   test('stopPropagation at target', function() {
-    var a = document.createElement('a');
+    var a = unwrap(document.createElement('a'));
     a.innerHTML = '<b><c>d</c></b>';
     var b = a.firstChild;
     var c = b.firstChild;
@@ -290,7 +290,7 @@ htmlSuite('Events', function() {
   });
 
   test('stopImmediatePropagation', function() {
-    var a = document.createElement('a');
+    var a = unwrap(document.createElement('a'));
     a.innerHTML = '<b><c>d</c></b>';
     var b = a.firstChild;
     var c = b.firstChild;
@@ -354,7 +354,7 @@ htmlSuite('Events', function() {
       });
     }
 
-    var div = document.createElement('div');
+    var div = unwrap(document.createElement('div'));
     div.innerHTML = '<a><b></b></a>';
     var a = div.firstChild;
     var b = a.firstChild;
@@ -672,7 +672,7 @@ htmlSuite('Events', function() {
   test('retarget order', function() {
     var tree = {};
     var div = tree.div = document.createElement('div');
-    // wrap(document).body.appendChild(div);
+    // document.body.appendChild(div);
     div.innerHTML = '<c></c><d></d>';
     var c = tree.c = div.firstChild;
     var d = tree.d = div.lastChild;
@@ -791,7 +791,7 @@ htmlSuite('Events', function() {
 test('retarget order (multiple shadow roots)', function() {
     var tree = {};
     var div = tree.div = document.createElement('div');
-    // wrap(document).body.appendChild(div);
+    // document.body.appendChild(div);
     div.innerHTML = '<c></c><d></d>';
     var c = tree.c = div.firstChild;
     var d = tree.d = div.lastChild;
@@ -1128,7 +1128,7 @@ test('retarget order (multiple shadow roots)', function() {
 
   test('onclick', function() {
     div = document.createElement('div');
-    wrap(document).body.appendChild(div);
+    document.body.appendChild(div);
 
     var calls = 0;
     var event;
@@ -1236,7 +1236,7 @@ test('retarget order (multiple shadow roots)', function() {
 
   test('event.path on body (bubbles)', function() {
     var e = new Event('x', {bubbles: true});
-    var doc = wrap(document);
+    var doc = document;
 
     doc.body.addEventListener('x', function f(e) {
       assertArrayEqual(
@@ -1278,7 +1278,7 @@ test('retarget order (multiple shadow roots)', function() {
 
   test('dispatch same event object twice', function() {
     var e = new Event('x', {bubbles: true});
-    var doc = wrap(document);
+    var doc = document;
 
     var count = 0;
     function handler(e) {
@@ -1299,7 +1299,7 @@ test('retarget order (multiple shadow roots)', function() {
 
   test('Ensure nested dispatch is not allowed', function() {
     var e = new Event('x', {bubbles: true});
-    var doc = wrap(document);
+    var doc = document;
 
     var count = 0;
 
@@ -1333,7 +1333,7 @@ test('retarget order (multiple shadow roots)', function() {
   });
 
   test('event propagation in shadow tree', function() {
-    var host = document.createElement('host');
+    var host = unwrap(document.createElement('host'));
     host.innerHTML = ' <child></child> ';
     var child = host.firstElementChild;
 

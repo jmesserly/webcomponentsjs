@@ -5,8 +5,8 @@
  */
 
 suite('HTMLContentElement', function() {
-
   var unwrap = ShadowDOMPolyfill.unwrap;
+  var HTMLContentElement = window.HTMLContentElement || HTMLUnknownElement;
 
   test('select', function() {
     var el = document.createElement('content');
@@ -24,7 +24,7 @@ suite('HTMLContentElement', function() {
   });
 
   test('getDistributedNodes', function() {
-    var host = document.createElement('div');
+    var host = unwrap(document.createElement('div'));
     host.innerHTML = '<a>a</a><b>b</b>';
     var a = host.firstChild;
     var b = host.lastChild;
@@ -56,7 +56,7 @@ suite('HTMLContentElement', function() {
   });
 
   test('getDistributedNodes add content deep inside tree', function() {
-    var host = document.createElement('div');
+    var host = unwrap(document.createElement('div'));
     host.innerHTML = ' <a></a> <a></a> <a></a> ';
     var root = host.createShadowRoot();
     var b = document.createElement('b');
@@ -69,7 +69,7 @@ suite('HTMLContentElement', function() {
   });
 
   test('getDistributedNodes add content deeper inside tree', function() {
-    var foo = document.createElement('div');
+    var foo = unwrap(document.createElement('div'));
     var fooRoot = foo.createShadowRoot();
     fooRoot.innerHTML = '<div>' +
       ' <div>item1</div> <div>item2</div> <div>item3</div> ' +
@@ -94,12 +94,13 @@ suite('HTMLContentElement', function() {
 
     var t = document.createElement('template');
     t.innerHTML = ' <div> <div> [<content></content>] </div> </div> ';
+    polyfillTemplate(t);
 
     var sr = host.createShadowRoot();
     sr.appendChild(t.content.cloneNode(true));
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML,
+    assert.equal(host.visualInnerHTML_,
         ' <div> <div> [ <p>Content</p> ] </div> </div> ');
   });
 
@@ -114,18 +115,18 @@ suite('HTMLContentElement', function() {
     var c = sr.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c></c>');
+    assert.equal(host.visualInnerHTML_, '<c></c>');
 
     var content = document.createElement('content');
     content.select = 'b';
     c.appendChild(content);
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c><b></b></c>');
+    assert.equal(host.visualInnerHTML_, '<c><b></b></c>');
 
     c.removeChild(content);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c></c>');
+    assert.equal(host.visualInnerHTML_, '<c></c>');
   });
 
   test('adding a new content element to a shadow tree 2', function() {
@@ -139,7 +140,7 @@ suite('HTMLContentElement', function() {
     var c = sr.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c></c>');
+    assert.equal(host.visualInnerHTML_, '<c></c>');
 
     var d = document.createElement('d');
     var content = d.appendChild(document.createElement('content'));
@@ -147,11 +148,11 @@ suite('HTMLContentElement', function() {
     c.appendChild(d);
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c><d><b></b></d></c>');
+    assert.equal(host.visualInnerHTML_, '<c><d><b></b></d></c>');
 
     c.removeChild(d);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c></c>');
+    assert.equal(host.visualInnerHTML_, '<c></c>');
   });
 
   test('restricting select further', function() {
@@ -166,11 +167,11 @@ suite('HTMLContentElement', function() {
     var content = c.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c><a></a><b></b></c>');
+    assert.equal(host.visualInnerHTML_, '<c><a></a><b></b></c>');
 
     content.select = 'b';
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<c><b></b></c>');
+    assert.equal(host.visualInnerHTML_, '<c><b></b></c>');
   });
 
   test('Mutating content fallback', function() {
@@ -183,19 +184,19 @@ suite('HTMLContentElement', function() {
     var content = sr.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '');
+    assert.equal(host.visualInnerHTML_, '');
 
     content.textContent = 'fallback';
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, 'fallback');
+    assert.equal(host.visualInnerHTML_, 'fallback');
 
     var b = content.appendChild(document.createElement('b'));
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, 'fallback<b></b>');
+    assert.equal(host.visualInnerHTML_, 'fallback<b></b>');
 
     content.removeChild(b);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, 'fallback');
+    assert.equal(host.visualInnerHTML_, 'fallback');
   });
 
   test('Mutating content fallback 2', function() {
@@ -209,19 +210,19 @@ suite('HTMLContentElement', function() {
     var content = b.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b></b>');
+    assert.equal(host.visualInnerHTML_, '<b></b>');
 
     content.textContent = 'fallback';
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b>fallback</b>');
+    assert.equal(host.visualInnerHTML_, '<b>fallback</b>');
 
     var c = content.appendChild(document.createElement('c'));
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b>fallback<c></c></b>');
+    assert.equal(host.visualInnerHTML_, '<b>fallback<c></c></b>');
 
     content.removeChild(c);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b>fallback</b>');
+    assert.equal(host.visualInnerHTML_, '<b>fallback</b>');
   });
 
   test('getDistributedNodes outside shadow dom', function() {

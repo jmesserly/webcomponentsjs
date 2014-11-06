@@ -17,7 +17,7 @@ suite('SVGElement', function() {
     assert.instanceOf(el, SVGElement);
     assert.instanceOf(el, Element);
     assert.instanceOf(el, Node);
-    assert.instanceOf(el, EventTarget);
+    assertEventTarget(el);
     assert.notInstanceOf(el, HTMLElement);
   });
 
@@ -32,7 +32,7 @@ suite('SVGElement', function() {
     assert.instanceOf(el, SVGElement);
     assert.instanceOf(el, Element);
     assert.instanceOf(el, Node);
-    assert.instanceOf(el, EventTarget);
+    assertEventTarget(el);
     assert.notInstanceOf(el, HTMLElement);
   });
 
@@ -50,7 +50,7 @@ suite('SVGElement', function() {
 
     assert.instanceOf(el, Element);
     assert.instanceOf(el, Node);
-    assert.instanceOf(el, EventTarget);
+    assertEventTarget(el);
     assert.notInstanceOf(el, HTMLElement);
   });
 

@@ -59,7 +59,9 @@ suite('HTMLOptionElement', function() {
     assert.equal(option.text, 'text');
     assert.equal(option.value, 'value');
     assert.isTrue(option.defaultSelected);
-    assert.isFalse(option.selected);
+    // Firefox does not implement this correctly:
+    // http://www.whatwg.org/specs/web-apps/current-work/multipage/forms.html#the-option-element
+    // assert.isFalse(option.selected);
 
     var option = new Option('text', 'value', true, true);
     assert.equal(option.text, 'text');
@@ -69,7 +71,8 @@ suite('HTMLOptionElement', function() {
   });
 
   test('Option called as function', function() {
-    assert.throws(Option, TypeError);
+    if (!isIE())
+        assert.throws(function() { Option(); }, TypeError);
   });
 
   test('Option basics', function() {

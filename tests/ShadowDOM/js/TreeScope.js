@@ -6,27 +6,29 @@
 
 suite('TreeScope', function() {
 
-  var getTreeScope = ShadowDOMPolyfill.getTreeScope;
+  var getTreeRoot = ShadowDOMPolyfill.getTreeRoot;
+  var getTreeRootParent = ShadowDOMPolyfill.getTreeRootParent;
+  var unwrap = ShadowDOMPolyfill.unwrap;
 
   test('Basic', function() {
     var div = document.createElement('div');
 
-    var ts = getTreeScope(div);
-    assert.equal(ts.root, div);
+    var ts = getTreeRoot(div);
+    assert.equal(ts, unwrap(div));
 
     div.innerHTML = '<a><b></b></a>';
     var a = div.firstChild;
     var b = a.firstChild;
 
-    assert.equal(getTreeScope(a), ts);
-    assert.equal(getTreeScope(b), ts);
+    assert.equal(getTreeRoot(a), ts);
+    assert.equal(getTreeRoot(b), ts);
   });
 
   test('ShadowRoot', function() {
     var div = document.createElement('div');
 
-    var ts = getTreeScope(div);
-    assert.equal(ts.root, div);
+    var ts = getTreeRoot(div);
+    assert.equal(ts, unwrap(div));
 
     div.innerHTML = '<a><b></b></a>';
     var a = div.firstChild;
@@ -34,16 +36,16 @@ suite('TreeScope', function() {
 
     var sr = a.createShadowRoot();
 
-    var srTs = getTreeScope(sr);
-    assert.equal(srTs.root, sr);
-    assert.equal(srTs.parent, ts);
+    var srTs = getTreeRoot(sr);
+    assert.equal(srTs, unwrap(sr));
+    assert.equal(getTreeRootParent(srTs), ts);
 
     sr.innerHTML = '<c><d></d></c>';
     var c = sr.firstChild;
     var d = c.firstChild;
 
-    assert.equal(getTreeScope(c), srTs);
-    assert.equal(getTreeScope(d), srTs);
+    assert.equal(getTreeRoot(c), srTs);
+    assert.equal(getTreeRoot(d), srTs);
   });
 
   test('change parent in shadow', function() {
@@ -63,24 +65,24 @@ suite('TreeScope', function() {
     sr3.innerHTML = '<d></d>';
     var d = sr3.firstChild;
 
-    var ts1 = getTreeScope(a);
-    var ts2 = getTreeScope(b);
-    var ts3 = getTreeScope(c);
-    var ts4 = getTreeScope(d);
+    var ts1 = getTreeRoot(a);
+    var ts2 = getTreeRoot(b);
+    var ts3 = getTreeRoot(c);
+    var ts4 = getTreeRoot(d);
 
-    assert.equal(ts1.parent, null);
-    assert.equal(ts2.parent, ts1);
-    assert.equal(ts3.parent, ts2);
-    assert.equal(ts4.parent, ts2);
+    assert.equal(getTreeRootParent(ts1), null);
+    assert.equal(getTreeRootParent(ts2), ts1);
+    assert.equal(getTreeRootParent(ts3), ts2);
+    assert.equal(getTreeRootParent(ts4), ts2);
 
     var div2 = document.createElement('div');
     div2.appendChild(a);
 
-    var ts5 = getTreeScope(a);
+    var ts5 = getTreeRoot(a);
     assert.notEqual(ts1, ts5);
-    assert.equal(ts2.parent, ts5);
-    assert.equal(ts3.parent, ts2);
-    assert.equal(ts4.parent, ts5);
+    assert.equal(getTreeRootParent(ts2), ts5);
+    assert.equal(getTreeRootParent(ts3), ts2);
+    assert.equal(getTreeRootParent(ts4), ts2);
   });
 
 });

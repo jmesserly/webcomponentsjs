@@ -36,7 +36,7 @@ suite('MutationObserver', function() {
       var records = observer.takeRecords();
       assert.equal(records.length, 0);
 
-      assert.equal(unwrap(a).outerHTML, '<a><c></c><d><b></b></d></a>');
+      assert.equal(a.visualOuterHTML_, '<a><c></c><d><b></b></d></a>');
     });
 
     test('Observe ShadowRoot', function() {
@@ -59,7 +59,7 @@ suite('MutationObserver', function() {
 
       var records = observer.takeRecords();
       assert.equal(records.length, 0);
-      assert.equal(unwrap(a).outerHTML, '<a><c></c><d><b></b></d></a>');
+      assert.equal(a.visualOuterHTML_, '<a><c></c><d><b></b></d></a>');
 
       var e = document.createElement('e');
       e.innerHTML = '<f></f><g></g><h></h>';
@@ -75,9 +75,9 @@ suite('MutationObserver', function() {
 
       d.insertBefore(g, content);
 
-      assert.equal(unwrap(a).outerHTML, '<a><c></c><d><b></b></d></a>');
+      assert.equal(a.visualOuterHTML_, '<a><c></c><d><b></b></d></a>');
       a.offsetHeight;
-      assert.equal(unwrap(a).outerHTML, '<a><c></c><d><g></g><b></b></d></a>');
+      assert.equal(a.visualOuterHTML_, '<a><c></c><d><g></g><b></b></d></a>');
 
       records = observer.takeRecords();
       assert.equal(records.length, 1);

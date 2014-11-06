@@ -7,11 +7,10 @@
 suite('Shadow DOM', function() {
 
   var getRendererForHost = ShadowDOMPolyfill.getRendererForHost;
-  var unwrap = ShadowDOMPolyfill.unwrap;
-
+  
   function getVisualInnerHtml(el) {
     el.offsetWidth;
-    return unwrap(el).innerHTML;
+    return el.visualInnerHTML_;
   }
 
   function normalizeInnerHtml(s) {

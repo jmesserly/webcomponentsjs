@@ -6,24 +6,32 @@
 
 suite('Parallel Trees', function() {
 
-  var wrap = ShadowDOMPolyfill.wrap;
-  var unwrap = ShadowDOMPolyfill.unwrap;
   var visual = ShadowDOMPolyfill.visual;
+  var unwrapIfNeeded = ShadowDOMPolyfill.unwrapIfNeeded;
 
-  var NodeInvalidate = Node.prototype.invalidateShadowRenderer;
+  function visualInsertBefore(node, child, ref) {
+    visual.insertBefore(unwrapIfNeeded(node), unwrapIfNeeded(child), unwrapIfNeeded(ref));
+  }
+
+  function visualRemove(node) {
+    visual.remove(unwrapIfNeeded(node));
+  }
+
+
+  var NodeInvalidate = Node.prototype.invalidateShadowRenderer_;
   setup(function() {
-    Node.prototype.invalidateShadowRenderer = function() {
+    Node.prototype.invalidateShadowRenderer_ = function() {
       return true;
     };
   });
 
   teardown(function() {
-    Node.prototype.invalidateShadowRenderer = NodeInvalidate;
+    Node.prototype.invalidateShadowRenderer_ = NodeInvalidate;
   });
 
   suite('Visual', function() {
 
-    test('removeAllChildNodes wrapper', function() {
+    test('removeAllChildNodes', function() {
       var div = document.createElement('div');
       div.textContent = 'a';
       var textNode = div.firstChild;
@@ -31,8 +39,8 @@ suite('Parallel Trees', function() {
       div.createShadowRoot();
       div.offsetWidth;
 
-      expectStructure(unwrap(div), {});
-      expectStructure(unwrap(textNode), {});
+      expectVisualStructure(div, {});
+      expectVisualStructure(textNode, {});
 
       expectStructure(div, {
         firstChild: textNode,
@@ -44,7 +52,7 @@ suite('Parallel Trees', function() {
       });
     });
 
-    test('removeAllChildNodes wrapper with 3 child nodes', function() {
+    test('removeAllChildNodes with 3 child nodes', function() {
       var div = document.createElement('div');
       div.innerHTML = '<a></a><b></b><c></c>';
       var a = div.firstChild;
@@ -54,10 +62,10 @@ suite('Parallel Trees', function() {
       div.createShadowRoot();
       div.offsetWidth;
 
-      expectStructure(unwrap(div), {});
-      expectStructure(unwrap(a), {});
-      expectStructure(unwrap(b), {});
-      expectStructure(unwrap(c), {});
+      expectVisualStructure(div, {});
+      expectVisualStructure(a, {});
+      expectVisualStructure(b, {});
+      expectVisualStructure(c, {});
 
       expectStructure(div, {
         firstChild: a,
@@ -87,17 +95,17 @@ suite('Parallel Trees', function() {
 
       expectStructure(div, {});
       expectStructure(textNode, {});
-      unwrapAndExpectStructure(div, {});
-      unwrapAndExpectStructure(textNode, {});
+      expectVisualStructure(div, {});
+      expectVisualStructure(textNode, {});
 
-      visual.insertBefore(div, textNode, null);
+      visualInsertBefore(div, textNode, null);
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: textNode,
         lastChild: textNode
       });
 
-      unwrapAndExpectStructure(textNode, {
+      expectVisualStructure(textNode, {
         parentNode: div
       });
 
@@ -111,19 +119,19 @@ suite('Parallel Trees', function() {
       var a = div.firstChild;
       var b = document.createElement('b');
 
-      visual.insertBefore(div, b, null);
+      visualInsertBefore(div, b, null);
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: b
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div,
         nextSibling: b
       });
 
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: div,
         previousSibling: a
       });
@@ -146,25 +154,25 @@ suite('Parallel Trees', function() {
       var b = div.lastChild;
       var c = document.createElement('c');
 
-      visual.insertBefore(div, c, null);
+      visualInsertBefore(div, c, null);
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: c
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div,
         nextSibling: b
       });
 
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: div,
         previousSibling: a,
         nextSibling: c
       });
 
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: div,
         previousSibling: b
       });
@@ -219,25 +227,25 @@ suite('Parallel Trees', function() {
         previousSibling: b
       });
 
-      unwrapAndExpectStructure(df, {});
+      expectVisualStructure(df, {});
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: c
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div,
         nextSibling: b
       });
 
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: div,
         previousSibling: a,
         nextSibling: c
       });
 
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: div,
         previousSibling: b
       });
@@ -261,14 +269,14 @@ suite('Parallel Trees', function() {
         parentNode: div
       });
 
-      unwrapAndExpectStructure(df, {});
+      expectVisualStructure(df, {});
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: a
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div
       });
     });
@@ -278,11 +286,11 @@ suite('Parallel Trees', function() {
       var b = document.createElement('b');
       a.appendChild(b);
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         firstChild: b,
         lastChild: b
       });
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: a
       });
 
@@ -295,17 +303,17 @@ suite('Parallel Trees', function() {
       });
 
       var c = document.createElement('c');
-      visual.insertBefore(a, c, b);
+      visualInsertBefore(a, c, b);
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         firstChild: c,
         lastChild: b
       });
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: a,
         previousSibling: c
       });
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: a,
         nextSibling: b
       });
@@ -320,21 +328,21 @@ suite('Parallel Trees', function() {
       expectStructure(c, {});
 
       var d = document.createElement('d');
-      visual.insertBefore(a, d, b);
+      visualInsertBefore(a, d, b);
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         firstChild: c,
         lastChild: b
       });
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: a,
         previousSibling: d
       });
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: a,
         nextSibling: d
       });
-      unwrapAndExpectStructure(d, {
+      expectVisualStructure(d, {
         parentNode: a,
         nextSibling: b,
         previousSibling: c
@@ -358,15 +366,15 @@ suite('Parallel Trees', function() {
       a.appendChild(b);
       a.appendChild(c);
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         firstChild: b,
         lastChild: c
       });
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: a,
         nextSibling: c
       });
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: a,
         previousSibling: b
       });
@@ -386,21 +394,21 @@ suite('Parallel Trees', function() {
 
       // b d c
       var d = document.createElement('d');
-      visual.insertBefore(a, d, c);
+      visualInsertBefore(a, d, c);
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         firstChild: b,
         lastChild: c
       });
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: a,
         nextSibling: d
       });
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: a,
         previousSibling: d
       });
-      unwrapAndExpectStructure(d, {
+      expectVisualStructure(d, {
         parentNode: a,
         previousSibling: b,
         nextSibling: c
@@ -426,10 +434,10 @@ suite('Parallel Trees', function() {
       div.innerHTML = '<a></a>';
       var a = div.firstChild;
 
-      visual.remove(a);
+      visualRemove(a);
 
-      unwrapAndExpectStructure(div, {});
-      unwrapAndExpectStructure(a, {});
+      expectVisualStructure(div, {});
+      expectVisualStructure(a, {});
 
       expectStructure(div, {
         firstChild: a,
@@ -447,16 +455,16 @@ suite('Parallel Trees', function() {
       var a = div.firstChild;
       var b = div.lastChild;
 
-      visual.remove(a);
+      visualRemove(a);
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: b,
         lastChild: b
       });
 
-      unwrapAndExpectStructure(a, {});
+      expectVisualStructure(a, {});
 
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: div
       });
 
@@ -482,18 +490,18 @@ suite('Parallel Trees', function() {
       var a = div.firstChild;
       var b = div.lastChild;
 
-      visual.remove(b);
+      visualRemove(b);
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: a
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div
       });
 
-      unwrapAndExpectStructure(b, {});
+      expectVisualStructure(b, {});
 
       expectStructure(div, {
         firstChild: a,
@@ -518,21 +526,21 @@ suite('Parallel Trees', function() {
       var b = a.nextSibling;
       var c = div.lastChild;
 
-      visual.remove(b);
+      visualRemove(b);
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: c
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div,
         nextSibling: c
       });
 
-      unwrapAndExpectStructure(b, {});
+      expectVisualStructure(b, {});
 
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: div,
         previousSibling: a
       });
@@ -571,10 +579,10 @@ suite('Parallel Trees', function() {
 
         div.textContent = '';
 
-        unwrapAndExpectStructure(div, {});
-        unwrapAndExpectStructure(a, {});
-        unwrapAndExpectStructure(b, {});
-        unwrapAndExpectStructure(c, {});
+        expectVisualStructure(div, {});
+        expectVisualStructure(a, {});
+        expectVisualStructure(b, {});
+        expectVisualStructure(c, {});
 
 
         expectStructure(div, {});
@@ -583,7 +591,7 @@ suite('Parallel Trees', function() {
         expectStructure(c, {});
       });
 
-      test('with wrappers before removal', function() {
+      test('with nodes before removal', function() {
         var div = document.createElement('div');
         div.innerHTML = '<a></a><b></b><c></c>';
         var a = div.firstChild;
@@ -592,10 +600,10 @@ suite('Parallel Trees', function() {
 
         div.textContent = '';
 
-        unwrapAndExpectStructure(div, {});
-        unwrapAndExpectStructure(a, {});
-        unwrapAndExpectStructure(b, {});
-        unwrapAndExpectStructure(c, {});
+        expectVisualStructure(div, {});
+        expectVisualStructure(a, {});
+        expectVisualStructure(b, {});
+        expectVisualStructure(c, {});
 
         expectStructure(div, {});
         expectStructure(a, {});
@@ -613,10 +621,10 @@ suite('Parallel Trees', function() {
         div.createShadowRoot();
         div.offsetWidth;
 
-        unwrapAndExpectStructure(div, {});
-        unwrapAndExpectStructure(a, {});
-        unwrapAndExpectStructure(b, {});
-        unwrapAndExpectStructure(c, {});
+        expectVisualStructure(div, {});
+        expectVisualStructure(a, {});
+        expectVisualStructure(b, {});
+        expectVisualStructure(c, {});
 
         div.textContent = '';
 
@@ -637,20 +645,20 @@ suite('Parallel Trees', function() {
 
         div.appendChild(c);
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: a,
           lastChild: c
         });
-        unwrapAndExpectStructure(a, {
+        expectVisualStructure(a, {
           parentNode: div,
           nextSibling: b
         });
-        unwrapAndExpectStructure(b, {
+        expectVisualStructure(b, {
           parentNode: div,
           previousSibling: a,
           nextSibling: c
         });
-        unwrapAndExpectStructure(c, {
+        expectVisualStructure(c, {
           parentNode: div,
           previousSibling: b
         });
@@ -674,7 +682,7 @@ suite('Parallel Trees', function() {
         });
       });
 
-      test('with wrappers before', function() {
+      test('with nodes before', function() {
         var div = document.createElement('div');
         div.innerHTML = '<a></a><b></b>';
         var a = div.firstChild;
@@ -683,20 +691,20 @@ suite('Parallel Trees', function() {
 
         div.appendChild(c);
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: a,
           lastChild: c
         });
-        unwrapAndExpectStructure(a, {
+        expectVisualStructure(a, {
           parentNode: div,
           nextSibling: b
         });
-        unwrapAndExpectStructure(b, {
+        expectVisualStructure(b, {
           parentNode: div,
           previousSibling: a,
           nextSibling: c
         });
-        unwrapAndExpectStructure(c, {
+        expectVisualStructure(c, {
           parentNode: div,
           previousSibling: b
         });
@@ -732,13 +740,13 @@ suite('Parallel Trees', function() {
 
         div.appendChild(c);
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: c,
           lastChild: c
         });
-        unwrapAndExpectStructure(a, {});
-        unwrapAndExpectStructure(b, {});
-        unwrapAndExpectStructure(c, {
+        expectVisualStructure(a, {});
+        expectVisualStructure(b, {});
+        expectVisualStructure(c, {
           parentNode: div
         });
 
@@ -772,20 +780,20 @@ suite('Parallel Trees', function() {
 
         div.insertBefore(b, c);
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: a,
           lastChild: c
         });
-        unwrapAndExpectStructure(a, {
+        expectVisualStructure(a, {
           parentNode: div,
           nextSibling: b
         });
-        unwrapAndExpectStructure(b, {
+        expectVisualStructure(b, {
           parentNode: div,
           previousSibling: a,
           nextSibling: c
         });
-        unwrapAndExpectStructure(c, {
+        expectVisualStructure(c, {
           parentNode: div,
           previousSibling: b
         });
@@ -809,7 +817,7 @@ suite('Parallel Trees', function() {
         });
       });
 
-      test('with wrappers before', function() {
+      test('with nodes before', function() {
         var div = document.createElement('div');
         div.innerHTML = '<a></a><c></c>';
         var a = div.firstChild;
@@ -818,20 +826,20 @@ suite('Parallel Trees', function() {
 
         div.insertBefore(b, c);
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: a,
           lastChild: c
         });
-        unwrapAndExpectStructure(a, {
+        expectVisualStructure(a, {
           parentNode: div,
           nextSibling: b
         });
-        unwrapAndExpectStructure(b, {
+        expectVisualStructure(b, {
           parentNode: div,
           previousSibling: a,
           nextSibling: c
         });
-        unwrapAndExpectStructure(c, {
+        expectVisualStructure(c, {
           parentNode: div,
           previousSibling: b
         });
@@ -867,10 +875,10 @@ suite('Parallel Trees', function() {
 
         div.insertBefore(b, c);
 
-        unwrapAndExpectStructure(div, {});
-        unwrapAndExpectStructure(a, {});
-        unwrapAndExpectStructure(b, {});
-        unwrapAndExpectStructure(c, {});
+        expectVisualStructure(div, {});
+        expectVisualStructure(a, {});
+        expectVisualStructure(b, {});
+        expectVisualStructure(c, {});
 
         expectStructure(div, {
           firstChild: a,
@@ -946,11 +954,11 @@ suite('Parallel Trees', function() {
 
       div.insertBefore(df, c);
 
-      unwrapAndExpectStructure(div, {});
-      unwrapAndExpectStructure(df, {});
-      unwrapAndExpectStructure(a, {});
-      unwrapAndExpectStructure(b, {});
-      unwrapAndExpectStructure(c, {});
+      expectVisualStructure(div, {});
+      expectVisualStructure(df, {});
+      expectVisualStructure(a, {});
+      expectVisualStructure(b, {});
+      expectVisualStructure(c, {});
 
       expectStructure(div, {
         firstChild: a,
@@ -1017,31 +1025,31 @@ suite('Parallel Trees', function() {
         previousSibling: c
       });
 
-      unwrapAndExpectStructure(df, {});
+      expectVisualStructure(df, {});
 
-      unwrapAndExpectStructure(div, {
+      expectVisualStructure(div, {
         firstChild: a,
         lastChild: d
       });
 
-      unwrapAndExpectStructure(a, {
+      expectVisualStructure(a, {
         parentNode: div,
         nextSibling: b
       });
 
-      unwrapAndExpectStructure(b, {
+      expectVisualStructure(b, {
         parentNode: div,
         previousSibling: a,
         nextSibling: c
       });
 
-      unwrapAndExpectStructure(c, {
+      expectVisualStructure(c, {
         parentNode: div,
         previousSibling: b,
         nextSibling: d
       });
 
-      unwrapAndExpectStructure(d, {
+      expectVisualStructure(d, {
         parentNode: div,
         previousSibling: c
       });
@@ -1112,19 +1120,19 @@ suite('Parallel Trees', function() {
 
         div.replaceChild(b, c);
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: a,
           lastChild: b
         });
-        unwrapAndExpectStructure(a, {
+        expectVisualStructure(a, {
           parentNode: div,
           nextSibling: b
         });
-        unwrapAndExpectStructure(b, {
+        expectVisualStructure(b, {
           parentNode: div,
           previousSibling: a
         });
-        unwrapAndExpectStructure(c, {});
+        expectVisualStructure(c, {});
 
         expectStructure(div, {
           firstChild: a,
@@ -1141,7 +1149,7 @@ suite('Parallel Trees', function() {
         expectStructure(c, {});
       });
 
-      test('with wrappers before', function() {
+      test('with nodes before', function() {
         var div = document.createElement('div');
         div.innerHTML = '<a></a><c></c>';
         var a = div.firstChild;
@@ -1191,10 +1199,10 @@ suite('Parallel Trees', function() {
 
         div.replaceChild(b, c);
 
-        unwrapAndExpectStructure(div, {});
-        unwrapAndExpectStructure(a, {});
-        unwrapAndExpectStructure(b, {});
-        unwrapAndExpectStructure(c, {});
+        expectVisualStructure(div, {});
+        expectVisualStructure(a, {});
+        expectVisualStructure(b, {});
+        expectVisualStructure(c, {});
 
         expectStructure(div, {
           firstChild: a,
@@ -1279,32 +1287,32 @@ suite('Parallel Trees', function() {
           previousSibling: c
         });
 
-        unwrapAndExpectStructure(df, {});
-        unwrapAndExpectStructure(e, {});
+        expectVisualStructure(df, {});
+        expectVisualStructure(e, {});
 
-        unwrapAndExpectStructure(div, {
+        expectVisualStructure(div, {
           firstChild: a,
           lastChild: d
         });
 
-        unwrapAndExpectStructure(a, {
+        expectVisualStructure(a, {
           parentNode: div,
           nextSibling: b
         });
 
-        unwrapAndExpectStructure(b, {
+        expectVisualStructure(b, {
           parentNode: div,
           previousSibling: a,
           nextSibling: c
         });
 
-        unwrapAndExpectStructure(c, {
+        expectVisualStructure(c, {
           parentNode: div,
           previousSibling: b,
           nextSibling: d
         });
 
-        unwrapAndExpectStructure(d, {
+        expectVisualStructure(d, {
           parentNode: div,
           previousSibling: c
         });
@@ -1316,7 +1324,7 @@ suite('Parallel Trees', function() {
   });
 
   test('innerHTML', function() {
-    var doc = wrap(document);
+    var doc = document;
     var div = doc.createElement('div');
     div.innerHTML = '<a></a>';
 

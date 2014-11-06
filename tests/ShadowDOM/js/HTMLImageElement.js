@@ -32,13 +32,16 @@ suite('HTMLImageElement', function() {
     assert.equal(img.width, 32);
     assert.equal(img.height, 0);
 
-    var img = new Image(undefined, 32);
+    // Note: if Firefox, undefined is the first argument, both are treated as
+    // undefined. So we use null here instead.
+    var img = new Image(null, 32);
     assert.equal(img.width, 0);
     assert.equal(img.height, 32);
   });
 
   test('Image called as function', function() {
-    assert.throws(Image, TypeError);
+    if (!isIE())
+      assert.throws(function() { Image(); }, TypeError);
   });
 
   test('Image basics', function() {

@@ -5,10 +5,10 @@
  */
 
 suite('HTMLShadowElement', function() {
-
-  var unwrap = ShadowDOMPolyfill.unwrap;
+  var HTMLShadowElement = window.HTMLShadowElement || HTMLUnknownElement;
 
   test('instanceof HTMLShadowElement', function() {
+
     var host = document.createElement('div');
     host.innerHTML = '<a>a</a><b>b</b>';
     var a = host.firstChild;
@@ -30,7 +30,7 @@ suite('HTMLShadowElement', function() {
 
     assert.isTrue(shadow2 instanceof HTMLShadowElement);
 
-    assert.equal(unwrap(host).innerHTML, 'da<a>a</a><b>b</b>cf');
+    assert.equal(host.visualInnerHTML_, 'da<a>a</a><b>b</b>cf');
   });
 
   test('constructor', function() {
@@ -51,17 +51,17 @@ suite('HTMLShadowElement', function() {
     var b = sr2.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b></b>');
+    assert.equal(host.visualInnerHTML_, '<b></b>');
 
     var shadow = document.createElement('shadow');
     b.appendChild(shadow);
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b><a></a></b>');
+    assert.equal(host.visualInnerHTML_, '<b><a></a></b>');
 
     b.removeChild(shadow);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b></b>');
+    assert.equal(host.visualInnerHTML_, '<b></b>');
   });
 
   test('Mutating shadow fallback (fallback support has been removed)', function() {
@@ -74,19 +74,19 @@ suite('HTMLShadowElement', function() {
     var shadow = sr.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<a></a>');
+    assert.equal(host.visualInnerHTML_, '<a></a>');
 
     shadow.textContent = 'fallback';
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<a></a>');
+    assert.equal(host.visualInnerHTML_, '<a></a>');
 
     var b = shadow.appendChild(document.createElement('b'));
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<a></a>');
+    assert.equal(host.visualInnerHTML_, '<a></a>');
 
     shadow.removeChild(b);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<a></a>');
+    assert.equal(host.visualInnerHTML_, '<a></a>');
   });
 
   test('Mutating shadow fallback 2 (fallback support has been removed)',
@@ -101,18 +101,18 @@ suite('HTMLShadowElement', function() {
     var shadow = b.firstChild;
 
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b><a></a></b>');
+    assert.equal(host.visualInnerHTML_, '<b><a></a></b>');
 
     shadow.textContent = 'fallback';
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b><a></a></b>');
+    assert.equal(host.visualInnerHTML_, '<b><a></a></b>');
 
     var c = shadow.appendChild(document.createElement('c'));
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b><a></a></b>');
+    assert.equal(host.visualInnerHTML_, '<b><a></a></b>');
 
     shadow.removeChild(c);
     host.offsetHeight;
-    assert.equal(unwrap(host).innerHTML, '<b><a></a></b>');
+    assert.equal(host.visualInnerHTML_, '<b><a></a></b>');
   });
 });

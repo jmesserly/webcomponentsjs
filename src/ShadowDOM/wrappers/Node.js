@@ -9,55 +9,18 @@
 
   var EventTarget = scope.wrappers.EventTarget;
   var NodeList = scope.wrappers.NodeList;
-  var TreeScope = scope.TreeScope;
   var assert = scope.assert;
-  var defineWrapGetter = scope.defineWrapGetter;
-  var enqueueMutation = scope.enqueueMutation;
-  var getTreeScope = scope.getTreeScope;
-  var isWrapper = scope.isWrapper;
+  var copyProperty = scope.copyProperty;
   var mixin = scope.mixin;
-  var registerTransientObservers = scope.registerTransientObservers;
-  var registerWrapper = scope.registerWrapper;
-  var setTreeScope = scope.setTreeScope;
-  var unsafeUnwrap = scope.unsafeUnwrap;
-  var unwrap = scope.unwrap;
-  var unwrapIfNeeded = scope.unwrapIfNeeded;
-  var wrap = scope.wrap;
-  var wrapIfNeeded = scope.wrapIfNeeded;
   var wrappers = scope.wrappers;
 
-  function assertIsNodeWrapper(node) {
-    assert(node instanceof Node);
-  }
+  var emptyNodeList = new NodeList();
 
   function createOneElementNodeList(node) {
     var nodes = new NodeList();
     nodes[0] = node;
     nodes.length = 1;
     return nodes;
-  }
-
-  var surpressMutations = false;
-
-  /**
-   * Called before node is inserted into a node to enqueue its removal from its
-   * old parent.
-   * @param {!Node} node The node that is about to be removed.
-   * @param {!Node} parent The parent node that the node is being removed from.
-   * @param {!NodeList} nodes The collected nodes.
-   */
-  function enqueueRemovalForInsertedNodes(node, parent, nodes) {
-    enqueueMutation(parent, 'childList', {
-      removedNodes: nodes,
-      previousSibling: node.previousSibling,
-      nextSibling: node.nextSibling
-    });
-  }
-
-  function enqueueRemovalForInsertedDocumentFragment(df, nodes) {
-    enqueueMutation(df, 'childList', {
-      removedNodes: nodes
-    });
   }
 
   /**
@@ -71,12 +34,10 @@
       var nodes = collectNodesForDocumentFragment(node);
 
       // The extra loop is to work around bugs with DocumentFragments in IE.
-      surpressMutations = true;
       for (var i = nodes.length - 1; i >= 0; i--) {
         node.removeChild(nodes[i]);
         nodes[i].parentNode_ = parentNode;
       }
-      surpressMutations = false;
 
       for (var i = 0; i < nodes.length; i++) {
         nodes[i].previousSibling_ = nodes[i - 1] || previousNode;
@@ -109,17 +70,6 @@
     return nodes;
   }
 
-  function collectNodesNative(node) {
-    if (node instanceof DocumentFragment)
-      return collectNodesForDocumentFragment(node);
-
-    var nodes = createOneElementNodeList(node);
-    var oldParent = node.parentNode;
-    if (oldParent)
-      enqueueRemovalForInsertedNodes(node, oldParent, nodes);
-    return nodes;
-  }
-
   function collectNodesForDocumentFragment(node) {
     var nodes = new NodeList();
     var i = 0;
@@ -127,7 +77,6 @@
       nodes[i++] = child;
     }
     nodes.length = i;
-    enqueueRemovalForInsertedDocumentFragment(node, nodes);
     return nodes;
   }
 
@@ -136,27 +85,16 @@
     return nodeList;
   }
 
-  // http://dom.spec.whatwg.org/#node-is-inserted
-  function nodeWasAdded(node, treeScope) {
-    setTreeScope(node, treeScope);
-    node.nodeIsInserted_();
-  }
-
-  function nodesWereAdded(nodes, parent) {
-    var treeScope = getTreeScope(parent);
-    for (var i = 0; i < nodes.length; i++) {
-      nodeWasAdded(nodes[i], treeScope);
+  function nodesWereRemoved(nodeList) {
+    for (var i = 0, len = nodeList.length; i < len; i++) {
+      nodeWasRemoved(nodeList[i]);
     }
   }
 
-  // http://dom.spec.whatwg.org/#node-is-removed
   function nodeWasRemoved(node) {
-    setTreeScope(node, new TreeScope(node, null));
-  }
-
-  function nodesWereRemoved(nodes) {
-    for (var i = 0; i < nodes.length; i++) {
-      nodeWasRemoved(nodes[i]);
+    node.ownerShadowRoot_ = null;
+    for (var c = node.firstChild; c; c = c.nextSibling) {
+      nodeWasRemoved(c);
     }
   }
 
@@ -182,62 +120,47 @@
     }
   }
 
-  function unwrapNodesForInsertion(owner, nodes) {
+  function prepareNodesForInsertion(owner, nodes) {
     adoptNodesIfNeeded(owner, nodes);
     var length = nodes.length;
 
     if (length === 1)
-      return unwrap(nodes[0]);
+      return nodes[0];
 
-    var df = unwrap(owner.ownerDocument.createDocumentFragment());
+    var df = owner.ownerDocument.createDocumentFragment();
     for (var i = 0; i < length; i++) {
-      df.appendChild(unwrap(nodes[i]));
+      df.visualAppendChild_(nodes[i]);
     }
     return df;
   }
 
-  function clearChildNodes(wrapper) {
-    if (wrapper.firstChild_ !== undefined) {
-      var child = wrapper.firstChild_;
-      while (child) {
-        var tmp = child;
-        child = child.nextSibling_;
-        tmp.parentNode_ = tmp.previousSibling_ = tmp.nextSibling_ = undefined;
-      }
+  function clearChildNodes(node) {
+    var child = node.firstChild_;
+    while (child) {
+      var tmp = child;
+      child = child.nextSibling_;
+      tmp.parentNode_ = tmp.previousSibling_ = tmp.nextSibling_ = undefined;
     }
-    wrapper.firstChild_ = wrapper.lastChild_ = undefined;
+    node.firstChild_ = node.lastChild_ = undefined;
   }
 
-  function removeAllChildNodes(wrapper) {
-    if (wrapper.invalidateShadowRenderer()) {
-      var childWrapper = wrapper.firstChild;
-      while (childWrapper) {
-        assert(childWrapper.parentNode === wrapper);
-        var nextSibling = childWrapper.nextSibling;
-        var childNode = unwrap(childWrapper);
-        var parentNode = childNode.parentNode;
-        if (parentNode)
-          originalRemoveChild.call(parentNode, childNode);
-        childWrapper.previousSibling_ = childWrapper.nextSibling_ =
-            childWrapper.parentNode_ = null;
-        childWrapper = nextSibling;
-      }
-      wrapper.firstChild_ = wrapper.lastChild_ = null;
-    } else {
-      var node = unwrap(wrapper);
-      var child = node.firstChild;
-      var nextSibling;
-      while (child) {
-        nextSibling = child.nextSibling;
-        originalRemoveChild.call(node, child);
-        child = nextSibling;
-      }
+  function removeAllChildNodes(node) {
+    var child = node.firstChild;
+    while (child) {
+      assert(child.parentNode === node);
+      var nextSibling = child.nextSibling;
+      var parentNode = child.visualParentNode_;
+      if (parentNode)
+        parentNode.visualRemoveChild_(child);
+      child.previousSibling_ = child.nextSibling_ = child.parentNode_ = null;
+      child = nextSibling;
     }
+    node.firstChild_ = node.lastChild_ = null;
   }
 
   function invalidateParent(node) {
     var p = node.parentNode;
-    return p && p.invalidateShadowRenderer();
+    return p && p.invalidateShadowRenderer_();
   }
 
   function cleanupNodes(nodes) {
@@ -253,16 +176,16 @@
   function cloneNode(node, deep, opt_doc) {
     var clone;
     if (opt_doc)
-      clone = wrap(originalImportNode.call(opt_doc, unsafeUnwrap(node), false));
+      clone = originalImportNode.call(opt_doc, node, false);
     else
-      clone = wrap(originalCloneNode.call(unsafeUnwrap(node), false));
+      clone = originalCloneNode.call(node, false);
 
     if (deep) {
       for (var child = node.firstChild; child; child = child.nextSibling) {
         clone.appendChild(cloneNode(child, true, opt_doc));
       }
 
-      if (node instanceof wrappers.HTMLTemplateElement) {
+      if (node.localName == 'template') {
         var cloneContent = clone.content;
         for (var child = node.content.firstChild;
              child;
@@ -276,7 +199,7 @@
   }
 
   function contains(self, child) {
-    if (!child || getTreeScope(self) !== getTreeScope(child))
+    if (!child || self.ownerShadowRoot_ !== child.ownerShadowRoot_)
       return false;
 
     for (var node = child; node; node = node.parentNode) {
@@ -286,63 +209,14 @@
     return false;
   }
 
-  var OriginalNode = window.Node;
-
-  /**
-   * This represents a wrapper of a native DOM node.
-   * @param {!Node} original The original DOM node, aka, the visual DOM node.
-   * @constructor
-   * @extends {EventTarget}
-   */
-  function Node(original) {
-    assert(original instanceof OriginalNode);
-
-    EventTarget.call(this, original);
-
-    // These properties are used to override the visual references with the
-    // logical ones. If the value is undefined it means that the logical is the
-    // same as the visual.
-
-    /**
-     * @type {Node|undefined}
-     * @private
-     */
-    this.parentNode_ = undefined;
-
-    /**
-     * @type {Node|undefined}
-     * @private
-     */
-    this.firstChild_ = undefined;
-
-    /**
-     * @type {Node|undefined}
-     * @private
-     */
-    this.lastChild_ = undefined;
-
-    /**
-     * @type {Node|undefined}
-     * @private
-     */
-    this.nextSibling_ = undefined;
-
-    /**
-     * @type {Node|undefined}
-     * @private
-     */
-    this.previousSibling_ = undefined;
-
-    this.treeScope_ = undefined;
-  }
-
-  var OriginalDocumentFragment = window.DocumentFragment;
-  var originalAppendChild = OriginalNode.prototype.appendChild;
+  var Node = window.Node;
+  var DocumentFragment = window.DocumentFragment;
+  var originalAppendChild = Node.prototype.appendChild;
   var originalCompareDocumentPosition =
-      OriginalNode.prototype.compareDocumentPosition;
-  var originalInsertBefore = OriginalNode.prototype.insertBefore;
-  var originalRemoveChild = OriginalNode.prototype.removeChild;
-  var originalReplaceChild = OriginalNode.prototype.replaceChild;
+      Node.prototype.compareDocumentPosition;
+  var originalInsertBefore = Node.prototype.insertBefore;
+  var originalRemoveChild = Node.prototype.removeChild;
+  var originalReplaceChild = Node.prototype.replaceChild;
 
   var isIe = /Trident/.test(navigator.userAgent);
 
@@ -351,7 +225,7 @@
         try {
           originalRemoveChild.call(parent, child);
         } catch (ex) {
-          if (!(parent instanceof OriginalDocumentFragment))
+          if (!(parent instanceof DocumentFragment))
             throw ex;
         }
       } :
@@ -359,253 +233,65 @@
         originalRemoveChild.call(parent, child);
       };
 
-  Node.prototype = Object.create(EventTarget.prototype);
+  copyProperty(Node, 'parentNode', 'visualParentNode_');
+  copyProperty(Node, 'firstChild', 'visualFirstChild_');
+  copyProperty(Node, 'lastChild', 'visualLastChild_');
+  copyProperty(Node, 'nextSibling', 'visualNextSibling_');
+  copyProperty(Node, 'previousSibling', 'visualPreviousSibling_');
+  copyProperty(Node, 'textContent', 'visualTextContent_');
+
   mixin(Node.prototype, {
-    appendChild: function(childWrapper) {
-      return this.insertBefore(childWrapper, null);
-    },
-
-    insertBefore: function(childWrapper, refWrapper) {
-      assertIsNodeWrapper(childWrapper);
-
-      var refNode;
-      if (refWrapper) {
-        if (isWrapper(refWrapper)) {
-          refNode = unwrap(refWrapper);
-        } else {
-          refNode = refWrapper;
-          refWrapper = wrap(refNode);
-        }
-      } else {
-        refWrapper = null;
-        refNode = null;
-      }
-
-      refWrapper && assert(refWrapper.parentNode === this);
-
-      var nodes;
-      var previousNode =
-          refWrapper ? refWrapper.previousSibling : this.lastChild;
-
-      var useNative = !this.invalidateShadowRenderer() &&
-                      !invalidateParent(childWrapper);
-
-      if (useNative)
-        nodes = collectNodesNative(childWrapper);
-      else
-        nodes = collectNodes(childWrapper, this, previousNode, refWrapper);
-
-      if (useNative) {
-        ensureSameOwnerDocument(this, childWrapper);
-        clearChildNodes(this);
-        originalInsertBefore.call(unsafeUnwrap(this), unwrap(childWrapper), refNode);
-      } else {
-        if (!previousNode)
-          this.firstChild_ = nodes[0];
-        if (!refWrapper) {
-          this.lastChild_ = nodes[nodes.length - 1];
-          if (this.firstChild_ === undefined)
-            this.firstChild_ = this.firstChild;
-        }
-
-        var parentNode = refNode ? refNode.parentNode : unsafeUnwrap(this);
-
-        // insertBefore refWrapper no matter what the parent is?
-        if (parentNode) {
-          originalInsertBefore.call(parentNode,
-              unwrapNodesForInsertion(this, nodes), refNode);
-        } else {
-          adoptNodesIfNeeded(this, nodes);
-        }
-      }
-
-      enqueueMutation(this, 'childList', {
-        addedNodes: nodes,
-        nextSibling: refWrapper,
-        previousSibling: previousNode
-      });
-
-      nodesWereAdded(nodes, this);
-
-      return childWrapper;
-    },
-
-    removeChild: function(childWrapper) {
-      assertIsNodeWrapper(childWrapper);
-      if (childWrapper.parentNode !== this) {
-        // IE has invalid DOM trees at times.
-        var found = false;
-        var childNodes = this.childNodes;
-        for (var ieChild = this.firstChild; ieChild;
-             ieChild = ieChild.nextSibling) {
-          if (ieChild === childWrapper) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          // TODO(arv): DOMException
-          throw new Error('NotFoundError');
-        }
-      }
-
-      var childNode = unwrap(childWrapper);
-      var childWrapperNextSibling = childWrapper.nextSibling;
-      var childWrapperPreviousSibling = childWrapper.previousSibling;
-
-      if (this.invalidateShadowRenderer()) {
-        // We need to remove the real node from the DOM before updating the
-        // pointers. This is so that that mutation event is dispatched before
-        // the pointers have changed.
-        var thisFirstChild = this.firstChild;
-        var thisLastChild = this.lastChild;
-
-        var parentNode = childNode.parentNode;
-        if (parentNode)
-          removeChildOriginalHelper(parentNode, childNode);
-
-        if (thisFirstChild === childWrapper)
-          this.firstChild_ = childWrapperNextSibling;
-        if (thisLastChild === childWrapper)
-          this.lastChild_ = childWrapperPreviousSibling;
-        if (childWrapperPreviousSibling)
-          childWrapperPreviousSibling.nextSibling_ = childWrapperNextSibling;
-        if (childWrapperNextSibling) {
-          childWrapperNextSibling.previousSibling_ =
-              childWrapperPreviousSibling;
-        }
-
-        childWrapper.previousSibling_ = childWrapper.nextSibling_ =
-            childWrapper.parentNode_ = undefined;
-      } else {
-        clearChildNodes(this);
-        removeChildOriginalHelper(unsafeUnwrap(this), childNode);
-      }
-
-      if (!surpressMutations) {
-        enqueueMutation(this, 'childList', {
-          removedNodes: createOneElementNodeList(childWrapper),
-          nextSibling: childWrapperNextSibling,
-          previousSibling: childWrapperPreviousSibling
-        });
-      }
-
-      registerTransientObservers(this, childWrapper);
-
-      return childWrapper;
-    },
-
-    replaceChild: function(newChildWrapper, oldChildWrapper) {
-      assertIsNodeWrapper(newChildWrapper);
-
-      var oldChildNode;
-      if (isWrapper(oldChildWrapper)) {
-        oldChildNode = unwrap(oldChildWrapper);
-      } else {
-        oldChildNode = oldChildWrapper;
-        oldChildWrapper = wrap(oldChildNode);
-      }
-
-      if (oldChildWrapper.parentNode !== this) {
-        // TODO(arv): DOMException
-        throw new Error('NotFoundError');
-      }
-
-      var nextNode = oldChildWrapper.nextSibling;
-      var previousNode = oldChildWrapper.previousSibling;
-      var nodes;
-
-      var useNative = !this.invalidateShadowRenderer() &&
-                      !invalidateParent(newChildWrapper);
-
-      if (useNative) {
-        nodes = collectNodesNative(newChildWrapper);
-      } else {
-        if (nextNode === newChildWrapper)
-          nextNode = newChildWrapper.nextSibling;
-        nodes = collectNodes(newChildWrapper, this, previousNode, nextNode);
-      }
-
-      if (!useNative) {
-        if (this.firstChild === oldChildWrapper)
-          this.firstChild_ = nodes[0];
-        if (this.lastChild === oldChildWrapper)
-          this.lastChild_ = nodes[nodes.length - 1];
-
-        oldChildWrapper.previousSibling_ = oldChildWrapper.nextSibling_ =
-            oldChildWrapper.parentNode_ = undefined;
-
-        // replaceChild no matter what the parent is?
-        if (oldChildNode.parentNode) {
-          originalReplaceChild.call(
-              oldChildNode.parentNode,
-              unwrapNodesForInsertion(this, nodes),
-              oldChildNode);
-        }
-      } else {
-        ensureSameOwnerDocument(this, newChildWrapper);
-        clearChildNodes(this);
-        originalReplaceChild.call(unsafeUnwrap(this), unwrap(newChildWrapper),
-                                  oldChildNode);
-      }
-
-      enqueueMutation(this, 'childList', {
-        addedNodes: nodes,
-        removedNodes: createOneElementNodeList(oldChildWrapper),
-        nextSibling: nextNode,
-        previousSibling: previousNode
-      });
-
-      nodeWasRemoved(oldChildWrapper);
-      nodesWereAdded(nodes, this);
-
-      return oldChildWrapper;
-    },
-
-    /**
-     * Called after a node was inserted. Subclasses override this to invalidate
-     * the renderer as needed.
-     * @private
-     */
-    nodeIsInserted_: function() {
-      for (var child = this.firstChild; child; child = child.nextSibling) {
-        child.nodeIsInserted_();
-      }
-    },
-
-    hasChildNodes: function() {
-      return this.firstChild !== null;
-    },
-
+    visualInsertBefore_: originalInsertBefore,
+    visualAppendChild_: originalAppendChild,
+    visualReplaceChild_: originalReplaceChild,
+    visualRemoveChild_: originalRemoveChild, 
+    
     /** @type {Node} */
     get parentNode() {
       // If the parentNode has not been overridden, use the original parentNode.
       return this.parentNode_ !== undefined ?
-          this.parentNode_ : wrap(unsafeUnwrap(this).parentNode);
+          this.parentNode_ : this.visualParentNode_;
     },
 
     /** @type {Node} */
     get firstChild() {
       return this.firstChild_ !== undefined ?
-          this.firstChild_ : wrap(unsafeUnwrap(this).firstChild);
+          this.firstChild_ : this.visualFirstChild_;
     },
 
     /** @type {Node} */
     get lastChild() {
       return this.lastChild_ !== undefined ?
-          this.lastChild_ : wrap(unsafeUnwrap(this).lastChild);
+          this.lastChild_ : this.visualLastChild_;
     },
 
     /** @type {Node} */
     get nextSibling() {
       return this.nextSibling_ !== undefined ?
-          this.nextSibling_ : wrap(unsafeUnwrap(this).nextSibling);
+          this.nextSibling_ : this.visualNextSibling_;
     },
 
     /** @type {Node} */
     get previousSibling() {
       return this.previousSibling_ !== undefined ?
-          this.previousSibling_ : wrap(unsafeUnwrap(this).previousSibling);
+          this.previousSibling_ : this.visualPreviousSibling_;
+    },
+
+    get childNodes() {
+      var first = this.firstChild;
+      if (!first) return emptyNodeList;
+
+      var list = new NodeList();
+      var i = 0;
+      for (var child = first; child; child = child.nextSibling) {
+        list[i++] = child;
+      }
+      list.length = i;
+      return list;
+    },
+
+    hasChildNodes: function() {
+      return this.firstChild !== null;
     },
 
     get parentElement() {
@@ -617,7 +303,7 @@
     },
 
     get textContent() {
-      // TODO(arv): This should fallback to unsafeUnwrap(this).textContent if there
+      // TODO(arv): This should fallback to this.visualTextContent_ if there
       // are no shadow trees below or above the context node.
       var s = '';
       for (var child = this.firstChild; child; child = child.nextSibling) {
@@ -627,40 +313,28 @@
       }
       return s;
     },
+
     set textContent(textContent) {
       if (textContent == null) textContent = '';
-      var removedNodes = snapshotNodeList(this.childNodes);
+      var root = this.ownerShadowRoot_;
+      var removedNodes;
+      if (root) removedNodes = snapshotNodeList(this.childNodes);
 
-      if (this.invalidateShadowRenderer()) {
+      if (this.invalidateShadowRenderer_()) {
         removeAllChildNodes(this);
         if (textContent !== '') {
-          var textNode = unsafeUnwrap(this).ownerDocument.createTextNode(textContent);
-          this.appendChild(textNode);
+          this.appendChild(this.ownerDocument.createTextNode(textContent));
         }
       } else {
-        clearChildNodes(this);
-        unsafeUnwrap(this).textContent = textContent;
+        if (this.firstChild_ !== undefined)
+          clearChildNodes(this);
+        this.visualTextContent_ = textContent;
       }
 
-      var addedNodes = snapshotNodeList(this.childNodes);
-
-      enqueueMutation(this, 'childList', {
-        addedNodes: addedNodes,
-        removedNodes: removedNodes
-      });
-
-      nodesWereRemoved(removedNodes);
-      nodesWereAdded(addedNodes, this);
-    },
-
-    get childNodes() {
-      var wrapperList = new NodeList();
-      var i = 0;
-      for (var child = this.firstChild; child; child = child.nextSibling) {
-        wrapperList[i++] = child;
+      if (root) {
+        nodesWereRemoved(removedNodes);
+        root.nodesWereAdded_(this.childNodes);
       }
-      wrapperList.length = i;
-      return wrapperList;
     },
 
     cloneNode: function(deep) {
@@ -668,14 +342,180 @@
     },
 
     contains: function(child) {
-      return contains(this, wrapIfNeeded(child));
+      return contains(this, child);
     },
 
-    compareDocumentPosition: function(otherNode) {
-      // This only wraps, it therefore only operates on the composed DOM and not
-      // the logical DOM.
-      return originalCompareDocumentPosition.call(unsafeUnwrap(this),
-                                                  unwrapIfNeeded(otherNode));
+    appendChild: function(child) {
+      return this.insertBefore(child, null);
+    },
+
+    insertBefore: function(child, refNode) {
+      var useNative = !this.invalidateShadowRenderer_() &&
+                      !invalidateParent(child);
+
+      var nodes;
+      if (useNative) {
+        if (child instanceof DocumentFragment) {
+          nodes = collectNodesForDocumentFragment(child);
+        }
+
+        ensureSameOwnerDocument(this, child);
+        if (this.firstChild_ !== undefined) {
+          clearChildNodes(this);
+        }
+        this.visualInsertBefore_(child, refNode);
+      } else {
+        var previousNode =
+            refNode ? refNode.previousSibling : this.lastChild;
+
+        nodes = collectNodes(child, this, previousNode, refNode);
+        if (!previousNode) {
+          this.firstChild_ = nodes[0];
+        }
+        if (!refNode) {
+          this.lastChild_ = nodes[nodes.length - 1];
+          if (this.firstChild_ === undefined) {
+            this.firstChild_ = this.firstChild;
+          }
+        }
+
+        var parentNode = refNode ? refNode.visualParentNode_ : this;
+
+        // insertBefore refNode no matter what the parent is?
+        if (parentNode) {
+          parentNode.visualInsertBefore_(
+              prepareNodesForInsertion(this, nodes), refNode);
+        } else {
+          adoptNodesIfNeeded(this, nodes);
+        }
+      }
+
+      var root = this.ownerShadowRoot_;
+      if (root) {
+        if (nodes) {
+          root.nodesWereAdded_(nodes);
+        } else {
+          root.nodeWasAdded_(child);
+        }
+      }
+
+      return child;
+    },
+
+    removeChild: function(child) {
+      if (child.parentNode !== this) {
+        // IE has invalid DOM trees at times.
+        var found = false;
+        var childNodes = this.childNodes;
+        for (var ieChild = this.firstChild; ieChild;
+             ieChild = ieChild.nextSibling) {
+          if (ieChild === child) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          // TODO(arv): DOMException
+          throw new Error('NotFoundError');
+        }
+      }
+
+      var childNextSibling = child.nextSibling;
+      var childPreviousSibling = child.previousSibling;
+
+      if (this.invalidateShadowRenderer_()) {
+        // We need to remove the real node from the DOM before updating the
+        // pointers. This is so that that mutation event is dispatched before
+        // the pointers have changed.
+        var thisFirstChild = this.firstChild;
+        var thisLastChild = this.lastChild;
+
+        var parentNode = child.visualParentNode_;
+        if (parentNode)
+          removeChildOriginalHelper(parentNode, child);
+
+        if (thisFirstChild === child)
+          this.firstChild_ = childNextSibling;
+        if (thisLastChild === child)
+          this.lastChild_ = childPreviousSibling;
+        if (childPreviousSibling)
+          childPreviousSibling.nextSibling_ = childNextSibling;
+        if (childNextSibling) {
+          childNextSibling.previousSibling_ =
+              childPreviousSibling;
+        }
+
+        child.previousSibling_ = child.nextSibling_ =
+            child.parentNode_ = undefined;
+      } else {
+        if (this.firstChild_ !== undefined)
+          clearChildNodes(this);
+        removeChildOriginalHelper(this, child);
+      }
+
+      if (this.ownerShadowRoot_) {
+        nodeWasRemoved(child);
+      }
+
+      return child;
+    },
+
+    replaceChild: function(newChild, oldChild) {
+      if (oldChild.parentNode !== this) {
+        // TODO(arv): DOMException
+        throw new Error('NotFoundError');
+      }
+
+      var useNative = !this.invalidateShadowRenderer_() &&
+                      !invalidateParent(newChild);
+      
+      var nodes;
+      if (useNative) {
+        if (newChild instanceof DocumentFragment) {
+          nodes = collectNodesForDocumentFragment(newChild);
+        }
+        ensureSameOwnerDocument(this, newChild);
+        if (this.firstChild_ !== undefined) {
+          clearChildNodes(this);
+        }
+        this.visualReplaceChild_(newChild, oldChild);
+      } else {      
+        var nextNode = oldChild.nextSibling;
+        var previousNode = oldChild.previousSibling;
+
+        if (nextNode === newChild)
+          nextNode = newChild.nextSibling;
+        nodes = collectNodes(newChild, this, previousNode, nextNode);
+
+        if (this.firstChild === oldChild) {
+          this.firstChild_ = nodes[0];
+        }
+        if (this.lastChild === oldChild) {
+          this.lastChild_ = nodes[nodes.length - 1];
+        }
+
+        oldChild.previousSibling_ = oldChild.nextSibling_ =
+            oldChild.parentNode_ = undefined;
+
+        // replaceChild no matter what the parent is?
+        if (oldChild.visualParentNode_) {
+          oldChild.visualParentNode_.visualReplaceChild_(
+              prepareNodesForInsertion(this, nodes),
+              oldChild);
+        }
+      }
+
+      var root = this.ownerShadowRoot_;
+      if (root) {
+        nodeWasRemoved(oldChild);
+        if (nodes) {
+          root.nodesWereAdded_(nodes);
+        } else {
+          root.nodeWasAdded_(newChild);
+        }
+      }
+
+      return oldChild;
     },
 
     normalize: function() {
@@ -713,27 +553,13 @@
         modNode.data += s;
         cleanupNodes(remNodes);
       }
-    }
+    },
+
   });
 
-  defineWrapGetter(Node, 'ownerDocument');
-
-  // We use a DocumentFragment as a base and then delete the properties of
-  // DocumentFragment.prototype from the wrapper Node. Since delete makes
-  // objects slow in some JS engines we recreate the prototype object.
-  registerWrapper(OriginalNode, Node, document.createDocumentFragment());
-  delete Node.prototype.querySelector;
-  delete Node.prototype.querySelectorAll;
-  Node.prototype = mixin(Object.create(EventTarget.prototype), Node.prototype);
-
   scope.cloneNode = cloneNode;
-  scope.nodeWasAdded = nodeWasAdded;
-  scope.nodeWasRemoved = nodeWasRemoved;
-  scope.nodesWereAdded = nodesWereAdded;
-  scope.nodesWereRemoved = nodesWereRemoved;
-  scope.originalInsertBefore = originalInsertBefore;
-  scope.originalRemoveChild = originalRemoveChild;
   scope.snapshotNodeList = snapshotNodeList;
-  scope.wrappers.Node = Node;
+  scope.copyProperty = copyProperty;
+  scope.Node = Node;
 
 })(window.ShadowDOMPolyfill);

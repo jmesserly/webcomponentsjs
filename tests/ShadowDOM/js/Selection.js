@@ -26,9 +26,6 @@ suite('Selection', function() {
 
 
   test('document.getSelection()', function() {
-    var selection = document.getSelection();
-    assert.instanceOf(selection, Selection);
-
     var doc = wrap(document);
     selection = doc.getSelection();
     assert.instanceOf(selection, Selection);
@@ -162,9 +159,9 @@ suite('Selection', function() {
     var selection = window.getSelection();
     selection.selectAllChildren(div);
 
-    assert.isFalse(selection.containsNode(div));
-    assert.isFalse(selection.containsNode(document));
-    assert.isFalse(selection.containsNode(document.body));
+    assert.isFalse(selection.containsNode(div, false));
+    assert.isFalse(selection.containsNode(document, false));
+    assert.isFalse(selection.containsNode(document.body, false));
 
     assert.isTrue(selection.containsNode(a, true));
     assert.isTrue(selection.containsNode(b, true));

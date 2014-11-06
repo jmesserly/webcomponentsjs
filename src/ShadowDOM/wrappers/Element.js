@@ -5,21 +5,9 @@
 (function(scope) {
   'use strict';
 
-  var ChildNodeInterface = scope.ChildNodeInterface;
-  var GetElementsByInterface = scope.GetElementsByInterface;
-  var Node = scope.wrappers.Node;
   var DOMTokenList = scope.wrappers.DOMTokenList;
-  var ParentNodeInterface = scope.ParentNodeInterface;
-  var SelectorsInterface = scope.SelectorsInterface;
-  var addWrapNodeListMethod = scope.addWrapNodeListMethod;
-  var enqueueMutation = scope.enqueueMutation;
   var mixin = scope.mixin;
   var oneOf = scope.oneOf;
-  var registerWrapper = scope.registerWrapper;
-  var unsafeUnwrap = scope.unsafeUnwrap;
-  var wrappers = scope.wrappers;
-
-  var OriginalElement = window.Element;
 
   var matchesNames = [
     'matches',  // needs to come first.
@@ -27,12 +15,10 @@
     'msMatchesSelector',
     'webkitMatchesSelector',
   ].filter(function(name) {
-    return OriginalElement.prototype[name];
+    return Element.prototype[name];
   });
 
   var matchesName = matchesNames[0];
-
-  var originalMatches = OriginalElement.prototype[matchesName];
 
   function invalidateRendererBasedOnAttribute(element, name) {
     // Only invalidate if parent node is a shadow host.
@@ -45,83 +31,93 @@
       renderer.invalidate();
   }
 
-  function enqueAttributeChange(element, name, oldValue) {
-    // This is not fully spec compliant. We should use localName (which might
-    // have a different case than name) and the namespace (which requires us
-    // to get the Attr object).
-    enqueueMutation(element, 'attributes', {
-      name: name,
-      namespace: null,
-      oldValue: oldValue
-    });
+  // Note: check HTMLElement because IE has them there
+  function overrideProperty(oldName, newName, newProps) {
+    var proto = Element.prototype;
+    var property = Object.getOwnPropertyDescriptor(proto, oldName);
+    if (!property) {
+      proto = HTMLElement.prototype;
+      property = Object.getOwnPropertyDescriptor(proto, oldName);
+    }
+
+    Object.defineProperty(proto, newName, property);
+    mixin(proto, newProps);
   }
+
+  overrideProperty('classList', 'originalClassList_', {
+    get classList() {
+      var list = classListTable.get(this);
+      if (!list) {
+        classListTable.set(this,
+            list = new DOMTokenList(this.originalClassList_, this));
+      }
+      return list;
+    }
+  });
+
+  overrideProperty('id', 'originalId_', {
+    get id() {
+      return this.originalId_;
+    },
+
+    set id(v) {
+      this.setAttribute('id', v);
+    },
+  });
+
+  mixin(Element.prototype, scope.ChildNodeInterface);
+  mixin(Element.prototype, scope.GetElementsByInterface);
+  mixin(Element.prototype, scope.ParentNodeInterface);
+  mixin(Element.prototype, scope.SelectorsInterface);
 
   var classListTable = new WeakMap();
 
-  function Element(node) {
-    Node.call(this, node);
-  }
-  Element.prototype = Object.create(Node.prototype);
   mixin(Element.prototype, {
-    createShadowRoot: function() {
-      var newShadowRoot = new wrappers.ShadowRoot(this);
-      unsafeUnwrap(this).polymerShadowRoot_ = newShadowRoot;
+    originalGetAttribute_: Element.prototype.getAttribute,
+    originalSetAttribute_: Element.prototype.setAttribute,
+    originalRemoveAttribute_: Element.prototype.removeAttribute,
+    originalMatches_: Element.prototype[matchesName],
+    
+    setAttribute: function(name, value) {
+      this.originalSetAttribute_(name, value);
+      invalidateRendererBasedOnAttribute(this, name);
+    },
 
-      var renderer = scope.getRendererForHost(this);
-      renderer.invalidate();
+    removeAttribute: function(name) {
+      this.originalRemoveAttribute_(name);
+      invalidateRendererBasedOnAttribute(this, name);
+    },
+
+    createShadowRoot: function() {
+      var newShadowRoot = scope.createShadowRoot(this);
+      this.polymerShadowRoot_ = newShadowRoot;
+
+      scope.getRendererForHost(this).invalidate();
 
       return newShadowRoot;
     },
 
     get shadowRoot() {
-      return unsafeUnwrap(this).polymerShadowRoot_ || null;
+      return this.polymerShadowRoot_ || null;
     },
 
-    // getDestinationInsertionPoints added in ShadowRenderer.js
-
-    setAttribute: function(name, value) {
-      var oldValue = unsafeUnwrap(this).getAttribute(name);
-      unsafeUnwrap(this).setAttribute(name, value);
-      enqueAttributeChange(this, name, oldValue);
-      invalidateRendererBasedOnAttribute(this, name);
-    },
-
-    removeAttribute: function(name) {
-      var oldValue = unsafeUnwrap(this).getAttribute(name);
-      unsafeUnwrap(this).removeAttribute(name);
-      enqueAttributeChange(this, name, oldValue);
-      invalidateRendererBasedOnAttribute(this, name);
-    },
-
+    // Note: this just standarizes the name.
+    // TODO(jmesserly): don't redefine this if the name was already correct.
     matches: function(selector) {
-      return originalMatches.call(unsafeUnwrap(this), selector);
+      return this.originalMatches_(selector);
     },
 
-    get classList() {
-      var list = classListTable.get(this);
-      if (!list) {
-        classListTable.set(this,
-            list = new DOMTokenList(unsafeUnwrap(this).classList, this));
-      }
-      return list;
-    },
-
-    get className() {
-      return unsafeUnwrap(this).className;
-    },
-
-    set className(v) {
-      this.setAttribute('class', v);
-    },
-
-    get id() {
-      return unsafeUnwrap(this).id;
-    },
-
-    set id(v) {
-      this.setAttribute('id', v);
-    }
   });
+
+  // Handle a things IE puts on HTMLElement instead of Element
+  // 
+  // TODO(jmesserly): are we better off deleting these or copying them down?
+  function copyDown(name) {
+    Object.defineProperty(HTMLElement.prototype, name,
+        Object.getOwnPropertyDescriptor(Element.prototype, name));
+  }
+
+  ['getElementsByClassName', 'children'].forEach(copyDown);
 
   matchesNames.forEach(function(name) {
     if (name !== 'matches') {
@@ -131,20 +127,11 @@
     }
   });
 
-  if (OriginalElement.prototype.webkitCreateShadowRoot) {
+  if (Element.prototype.webkitCreateShadowRoot) {
     Element.prototype.webkitCreateShadowRoot =
         Element.prototype.createShadowRoot;
   }
 
-  mixin(Element.prototype, ChildNodeInterface);
-  mixin(Element.prototype, GetElementsByInterface);
-  mixin(Element.prototype, ParentNodeInterface);
-  mixin(Element.prototype, SelectorsInterface);
-
-  registerWrapper(OriginalElement, Element,
-                  document.createElementNS(null, 'x'));
-
   scope.invalidateRendererBasedOnAttribute = invalidateRendererBasedOnAttribute;
   scope.matchesNames = matchesNames;
-  scope.wrappers.Element = Element;
 })(window.ShadowDOMPolyfill);

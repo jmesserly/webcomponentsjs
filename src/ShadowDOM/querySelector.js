@@ -7,9 +7,6 @@
 
   var HTMLCollection = scope.wrappers.HTMLCollection;
   var NodeList = scope.wrappers.NodeList;
-  var getTreeScope = scope.getTreeScope;
-  var unsafeUnwrap = scope.unsafeUnwrap;
-  var wrap = scope.wrap;
 
   var originalDocumentQuerySelector = document.querySelector;
   var originalElementQuerySelector = document.documentElement.querySelector;
@@ -23,20 +20,16 @@
   var originalDocumentGetElementsByTagNameNS = document.getElementsByTagNameNS;
   var originalElementGetElementsByTagNameNS = document.documentElement.getElementsByTagNameNS;
 
-  var OriginalElement = window.Element;
-  var OriginalDocument = window.HTMLDocument || window.Document;
+  var Document = window.HTMLDocument || window.Document;
 
   function filterNodeList(list, index, result, deep) {
-    var wrappedItem = null;
-    var root = null;
+    var item = null;
     for (var i = 0, length = list.length; i < length; i++) {
-      wrappedItem = wrap(list[i]);
-      if (!deep && (root = getTreeScope(wrappedItem).root)) {
-        if (root instanceof scope.wrappers.ShadowRoot) {
-          continue;
-        }
+      item = list[i];
+      if (!deep && item.ownerShadowRoot_) {
+        continue;
       }
-      result[index++] = wrappedItem;
+      result[index++] = item;
     }
 
     return index;
@@ -102,18 +95,19 @@
   // Structural Pseudo Classes are not guarenteed to be correct
   // http://www.w3.org/TR/css3-selectors/#simple-selectors
 
+  // TODO(jmesserly): we can avoid all of the `this instanceof` type checks by
+  // patching the appropriate method onto the appropriate prototype.
+
   function querySelectorAllFiltered(p, index, result, selector, deep) {
-    var target = unsafeUnwrap(this);
     var list;
-    var root = getTreeScope(this).root;
-    if (root instanceof scope.wrappers.ShadowRoot) {
+    if (this.ownerShadowRoot_) {
       // We are in the shadow tree and the logical tree is
       // going to be disconnected so we do a manual tree traversal
       return findElements(this, index, result, p, selector, null);
-    } else if (target instanceof OriginalElement) {
-      list = originalElementQuerySelectorAll.call(target, selector);
-    } else if (target instanceof OriginalDocument) {
-      list = originalDocumentQuerySelectorAll.call(target, selector);
+    } else if (this instanceof Element) {
+      list = originalElementQuerySelectorAll.call(this, selector);
+    } else if (this instanceof Document) {
+      list = originalDocumentQuerySelectorAll.call(this, selector);
     } else {
       // When we get a ShadowRoot the logical tree is going to be disconnected
       // so we do a manual tree traversal
@@ -128,37 +122,32 @@
       var shimmed = shimSelector(selector);
       var deep = shimmed !== selector;
       selector = shimmed;
-
-      var target = unsafeUnwrap(this);
-      var wrappedItem;
-      var root = getTreeScope(this).root;
-      if (root instanceof scope.wrappers.ShadowRoot) {
+      var item;
+      if (this.ownerShadowRoot_) {
         // We are in the shadow tree and the logical tree is
         // going to be disconnected so we do a manual tree traversal
         return findOne(this, selector);
-      } else if (target instanceof OriginalElement) {
-        wrappedItem = wrap(originalElementQuerySelector.call(target, selector));
-      } else if (target instanceof OriginalDocument) {
-        wrappedItem = wrap(originalDocumentQuerySelector.call(target, selector));
+      } else if (this instanceof Element) {
+        item = originalElementQuerySelector.call(this, selector);
+      } else if (this instanceof Document) {
+        item = originalDocumentQuerySelector.call(this, selector);
       } else {
         // When we get a ShadowRoot the logical tree is going to be disconnected
         // so we do a manual tree traversal
         return findOne(this, selector);
       }
 
-      if (!wrappedItem) {
+      if (!item) {
         // When the original query returns nothing
         // we return nothing (to be consistent with the other wrapped calls)
-        return wrappedItem;
-      } else if (!deep && (root = getTreeScope(wrappedItem).root)) {
-        if (root instanceof scope.wrappers.ShadowRoot) {
-          // When the original query returns an element in the ShadowDOM
-          // we must do a manual tree traversal
-          return findOne(this, selector);
-        }
+        return item;
+      } else if (!deep && item.ownerShadowRoot_) {
+        // When the original query returns an element in the ShadowDOM
+        // we must do a manual tree traversal
+        return findOne(this, selector);
       }
 
-      return wrappedItem;
+      return item;
     },
     querySelectorAll: function(selector) {
       var shimmed = shimSelector(selector);
@@ -180,18 +169,16 @@
 
   function getElementsByTagNameFiltered(p, index, result, localName,
                                         lowercase) {
-    var target = unsafeUnwrap(this);
     var list;
-    var root = getTreeScope(this).root;
-    if (root instanceof scope.wrappers.ShadowRoot) {
+    if (this.ownerShadowRoot_) {
       // We are in the shadow tree and the logical tree is
       // going to be disconnected so we do a manual tree traversal
       return findElements(this, index, result, p, localName, lowercase);
-    } else if (target instanceof OriginalElement) {
-      list = originalElementGetElementsByTagName.call(target, localName,
+    } else if (this instanceof Element) {
+      list = originalElementGetElementsByTagName.call(this, localName,
                                                       lowercase);
-    } else if (target instanceof OriginalDocument) {
-      list = originalDocumentGetElementsByTagName.call(target, localName,
+    } else if (this instanceof Document) {
+      list = originalDocumentGetElementsByTagName.call(this, localName,
                                                        lowercase);
     } else {
       // When we get a ShadowRoot the logical tree is going to be disconnected
@@ -203,17 +190,15 @@
   }
 
   function getElementsByTagNameNSFiltered(p, index, result, ns, localName) {
-    var target = unsafeUnwrap(this);
     var list;
-    var root = getTreeScope(this).root;
-    if (root instanceof scope.wrappers.ShadowRoot) {
+    if (this.ownerShadowRoot_) {
       // We are in the shadow tree and the logical tree is
       // going to be disconnected so we do a manual tree traversal
       return findElements(this, index, result, p, ns, localName);
-    } else if (target instanceof OriginalElement) {
-      list = originalElementGetElementsByTagNameNS.call(target, ns, localName);
-    } else if (target instanceof OriginalDocument) {
-      list = originalDocumentGetElementsByTagNameNS.call(target, ns, localName);
+    } else if (this instanceof Element) {
+      list = originalElementGetElementsByTagNameNS.call(this, ns, localName);
+    } else if (this instanceof Document) {
+      list = originalDocumentGetElementsByTagNameNS.call(this, ns, localName);
     } else {
       // When we get a ShadowRoot the logical tree is going to be disconnected
       // so we do a manual tree traversal

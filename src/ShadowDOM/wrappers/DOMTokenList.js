@@ -4,47 +4,46 @@
 
 (function(scope) {
   'use strict';
-
-  var setWrapper = scope.setWrapper;
-  var unsafeUnwrap = scope.unsafeUnwrap;
-
+  
   function invalidateClass(el) {
     scope.invalidateRendererBasedOnAttribute(el, 'class');
   }
 
   function DOMTokenList(impl, ownerElement) {
-    setWrapper(impl, this);
+    this.impl = impl;
     this.ownerElement_ = ownerElement;
   }
 
   DOMTokenList.prototype = {
     constructor: DOMTokenList,
     get length() {
-      return unsafeUnwrap(this).length;
+      return this.impl.length;
     },
     item: function(index) {
-      return unsafeUnwrap(this).item(index);
+      return this.impl.item(index);
     },
     contains: function(token) {
-      return unsafeUnwrap(this).contains(token);
+      return this.impl.contains(token);
     },
     add: function() {
-      unsafeUnwrap(this).add.apply(unsafeUnwrap(this), arguments);
+      this.impl.add.apply(this.impl, arguments);
       invalidateClass(this.ownerElement_);
     },
     remove: function() {
-      unsafeUnwrap(this).remove.apply(unsafeUnwrap(this), arguments);
+      this.impl.remove.apply(this.impl, arguments);
       invalidateClass(this.ownerElement_);
     },
     toggle: function(token) {
-      var rv = unsafeUnwrap(this).toggle.apply(unsafeUnwrap(this), arguments);
+      var rv = this.impl.toggle.apply(this.impl, arguments);
       invalidateClass(this.ownerElement_);
       return rv;
     },
     toString: function() {
-      return unsafeUnwrap(this).toString();
+      return this.impl.toString();
     }
   };
+
+  window.DOMTokenList = DOMTokenList;
 
   scope.wrappers.DOMTokenList = DOMTokenList;
 })(window.ShadowDOMPolyfill);

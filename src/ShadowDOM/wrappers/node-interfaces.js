@@ -6,6 +6,7 @@
   'use strict';
 
   var NodeList = scope.wrappers.NodeList;
+  var wrapIfNeeded = scope.wrapIfNeeded;
 
   function forwardElement(node) {
     while (node && node.nodeType !== Node.ELEMENT_NODE) {

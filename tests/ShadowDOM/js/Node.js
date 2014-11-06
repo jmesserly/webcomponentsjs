@@ -19,7 +19,7 @@ suite('Node', function() {
   suite('compareDocumentPosition', function() {
 
     test('between wrappers', function() {
-      var div = document.createElement('div');
+      var div = unwrap(document.createElement('div'));
       div.innerHTML = '<a><b></b><c></c></a>';
       var a = div.firstChild;
       var b = a.firstChild;
@@ -62,34 +62,18 @@ suite('Node', function() {
           DOCUMENT_POSITION_DISCONNECTED, 0)
     });
 
-    var doc = wrap(document);
     test('with document', function() {
-      assert.equal(doc.compareDocumentPosition(doc), 0);
-      assert.equal(doc.compareDocumentPosition(document), 0);
       assert.equal(document.compareDocumentPosition(document), 0);
-      assert.equal(document.compareDocumentPosition(doc), 0);
     });
     test('with document.body', function() {
-      assert.equal(doc.body.compareDocumentPosition(doc.body), 0);
-      assert.equal(doc.body.compareDocumentPosition(document.body), 0);
       assert.equal(document.body.compareDocumentPosition(document.body), 0);
-      assert.equal(document.body.compareDocumentPosition(doc.body), 0);
     });
     test('with document.head', function() {
-      assert.equal(doc.head.compareDocumentPosition(doc.head), 0);
-      assert.equal(doc.head.compareDocumentPosition(document.head), 0);
       assert.equal(document.head.compareDocumentPosition(document.head), 0);
-      assert.equal(document.head.compareDocumentPosition(doc.head), 0);
     });
     test('with document.documentElement', function() {
-      assert.equal(doc.documentElement.compareDocumentPosition(
-          doc.documentElement), 0);
-      assert.equal(doc.documentElement.compareDocumentPosition(
-          document.documentElement), 0);
       assert.equal(document.documentElement.compareDocumentPosition(
           document.documentElement), 0);
-      assert.equal(document.documentElement.compareDocumentPosition(
-          doc.documentElement), 0);
     });
   });
 
@@ -270,7 +254,7 @@ suite('Node', function() {
     var div = document.createElement('div');
     assert.instanceOf(div, HTMLElement);
     assert.instanceOf(div, Element);
-    assert.instanceOf(div, EventTarget);
+    assertEventTarget(div);
   });
 
   test('cloneNode(false)', function() {
@@ -314,13 +298,13 @@ suite('Node', function() {
     var sr = a.createShadowRoot();
     sr.innerHTML = '<b></b>';
     div.offsetHeight;
-    assert.equal(unwrap(div).innerHTML, '<a><b></b></a>');
+    assert.equal(div.visualInnerHTML_, '<a><b></b></a>');
 
     var clone = div.cloneNode(true);
     assert.equal(clone.innerHTML, '<a></a>');
     clone.offsetHeight;
     // shadow roots are not cloned.
-    assert.equal(unwrap(clone).innerHTML, '<a></a>');
+    assert.equal(clone.visualInnerHTML_, '<a></a>');
   });
 
   test('insertBefore', function() {

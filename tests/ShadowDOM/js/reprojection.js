@@ -6,11 +6,9 @@
 
 suite('Shadow DOM reprojection', function() {
 
-  var unwrap = ShadowDOMPolyfill.unwrap;
-
   function getVisualInnerHtml(el) {
     el.offsetWidth;
-    return unwrap(el).innerHTML;
+    return el.visualInnerHTML_;
   }
 
   test('Reproject', function() {
@@ -197,7 +195,7 @@ suite('Shadow DOM reprojection', function() {
   test('Regression 432', function() {
     // https://github.com/Polymer/ShadowDOM/issues/432
 
-    var xFoo = document.createElement('x-foo');
+    var xFoo = ShadowDOMPolyfill.unwrap(document.createElement('x-foo'));
     xFoo.innerHTML = '<div>Hello</div>';
     var div = xFoo.firstChild;
 

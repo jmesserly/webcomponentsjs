@@ -5,16 +5,13 @@
 (function(scope) {
   'use strict';
 
-  var HTMLElement = scope.wrappers.HTMLElement;
+  var HTMLElement = window.HTMLElement;
+  var Element = window.Element;
   var mixin = scope.mixin;
-  var registerWrapper = scope.registerWrapper;
 
-  var OriginalHTMLContentElement = window.HTMLContentElement;
+  var HTMLContentElement = window.HTMLContentElement || window.HTMLUnknownElement;
+  var HTMLShadowElement = window.HTMLShadowElement || window.HTMLUnknownElement;
 
-  function HTMLContentElement(node) {
-    HTMLElement.call(this, node);
-  }
-  HTMLContentElement.prototype = Object.create(HTMLElement.prototype);
   mixin(HTMLContentElement.prototype, {
     constructor: HTMLContentElement,
 
@@ -26,16 +23,19 @@
     },
 
     setAttribute: function(n, v) {
-      HTMLElement.prototype.setAttribute.call(this, n, v);
-      if (String(n).toLowerCase() === 'select')
-        this.invalidateShadowRenderer(true);
+      Element.prototype.setAttribute.call(this, n, v);
+      if (String(n).toLowerCase() === 'select') {
+        this.invalidateShadowRenderer_();
+      }
     }
 
     // getDistributedNodes is added in ShadowRenderer
   });
 
-  if (OriginalHTMLContentElement)
-    registerWrapper(OriginalHTMLContentElement, HTMLContentElement);
-
-  scope.wrappers.HTMLContentElement = HTMLContentElement;
+  // TODO(jmesserly): we could add these to window, but it feels wrong, because
+  // any HTMLUnknownElement would be instanceof HTMLContentElement.
+  // TemplateBinding does more sophisticated treatment of these; perhaps we
+  // should too.
+  scope.HTMLContentElement = HTMLContentElement;
+  scope.HTMLShadowElement = HTMLShadowElement;
 })(window.ShadowDOMPolyfill);

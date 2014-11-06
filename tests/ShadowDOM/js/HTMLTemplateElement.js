@@ -9,6 +9,7 @@ suite('HTML Template Element', function() {
   test('content', function() {
     var div = document.createElement('div');
     div.innerHTML = '<template><a></a><b></b></template>';
+    polyfillTemplate(div);
     var template = div.firstChild;
     var content = template.content;
 
@@ -21,6 +22,7 @@ suite('HTML Template Element', function() {
   test('document', function() {
     var div = document.createElement('div');
     div.innerHTML = '<template><a></a></template><template><b></b></template>';
+    polyfillTemplate(div);
     var templateA = div.firstChild;
     var templateB= div.lastChild;
     var contentA = templateA.content;
@@ -43,6 +45,7 @@ suite('HTML Template Element', function() {
   test('get outerHTML', function() {
     var div = document.createElement('div');
     div.innerHTML = '<template><a></a><b></b></template>';
+    polyfillTemplate(div);
     var template = div.firstChild;
 
     assert.equal(template.outerHTML, '<template><a></a><b></b></template>');
@@ -53,6 +56,7 @@ suite('HTML Template Element', function() {
   test('set innerHTML', function() {
     var div = document.createElement('div');
     div.innerHTML = '<template><a></a><b></b></template>';
+    polyfillTemplate(div);
     var template = div.firstChild;
     template.innerHTML = 'c<d></d>e';
 
@@ -93,6 +97,7 @@ suite('HTML Template Element', function() {
   test('Mutation events', function() {
     var div = document.createElement('div');
     div.innerHTML = '<template> <a>b</a></template>';
+    polyfillTemplate(div);
 
     var count = 0;
     function handleEvent(e) {
@@ -120,6 +125,7 @@ suite('HTML Template Element', function() {
   test('cloneNode', function() {
     var div = document.createElement('div');
     div.innerHTML = '<template><a></a><b></b></template>';
+    polyfillTemplate(div);
     var template = div.firstChild;
 
     var clone = template.cloneNode(true);
@@ -134,6 +140,7 @@ suite('HTML Template Element', function() {
     var doc2 = document.implementation.createHTMLDocument('');
     var div = doc2.createElement('div');
     div.innerHTML = '<template><a></a><b></b></template>';
+    polyfillTemplate(div);
     var template = div.firstChild;
 
     var clone = document.importNode(template, true);
