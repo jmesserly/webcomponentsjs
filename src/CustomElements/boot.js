@@ -36,6 +36,10 @@ if (useNative) {
   // the polyfill is required and allows the polyfill to load even when it's
   // not needed.
   initializeModules();
+
+  if (window.ShadowDOMPolyfill) {
+    scope.observeTree = false;
+  }
 }
 
 // imports

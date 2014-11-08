@@ -27,23 +27,41 @@ function forSubtree(node, cb) {
   //flags.dom && node.childNodes && node.childNodes.length && console.groupEnd();
 }
 
-
 // walk the subtree rooted at node, applying 'find(element, data)' function
 // to each element
 // if 'find' returns true for 'element', do not search element's subtree
 function findAllElements(node, find, data) {
-  var e = node.firstElementChild;
-  if (!e) {
+  /*var e = node.firstElementChild;
+  // Safari and IE don't support this API on Document and DocumentFragment:
+  // https://developer.mozilla.org/en-US/docs/Web/API/ParentNode.firstElementChild
+  // However if we are using ShadowDOM polyfill, it will be implemented on those
+  // browsers as well.
+  if (e === undefined) {
     e = node.firstChild;
     while (e && e.nodeType !== Node.ELEMENT_NODE) {
       e = e.nextSibling;
     }
-  }
-  while (e) {
-    if (find(e, data) !== true) {
-      findAllElements(e, find, data);
+  }*/
+  var e = node.visualFirstChild_;
+  if (e === undefined) {
+    e = node.firstChild;
+    while (e) {
+      if (e.nodeType === Node.ELEMENT_NODE) {
+        if (find(e, data) !== true) {
+          findAllElements(e, find, data);
+        }
+      }
+      e = e.nextSibling;
     }
-    e = e.nextElementSibling;
+  } else {
+    while (e) {
+      if (e.nodeType === Node.ELEMENT_NODE) {
+        if (find(e, data) !== true) {
+          findAllElements(e, find, data);
+        }
+      }
+      e = e.visualNextSibling_;
+    }
   }
   return null;
 }

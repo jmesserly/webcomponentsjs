@@ -41,11 +41,7 @@ function added(node) {
 // manage lifecycle on added node's subtree only; allows the entire subtree
 // to upgrade if necessary and process attached
 function addedSubtree(node) {
-  forSubtree(node, function(e) {
-    if (added(e)) {
-      return true;
-    }
-  });
+  forSubtree(node, added);
 }
 
 function attachedNode(node) {
@@ -259,7 +255,7 @@ var forEach = Array.prototype.forEach.call.bind(Array.prototype.forEach);
 
 // observe a node tree; bail if it's already being observed.
 function observe(inRoot) {
-  if (inRoot.__observer) {
+  if (inRoot.__observer || !scope.observeTree) {
     return;
   }
   // For each ShadowRoot, we create a new MutationObserver, so the root can be
@@ -297,6 +293,7 @@ Element.prototype.createShadowRoot = function() {
 };
 
 // exports
+scope.observeTree = true;
 scope.watchShadow = watchShadow;
 scope.upgradeDocumentTree = upgradeDocumentTree;
 scope.upgradeSubtree = addedSubtree;

@@ -175,10 +175,16 @@
 
   function cloneNode(node, deep, opt_doc) {
     var clone;
-    if (opt_doc)
+    if (opt_doc) {
+      // Fast path for importing nodes from template's DocumentFragment.
+      // Assume there are no ShadowRoots inside the fragment.
+      if (node instanceof DocumentFragment) {
+        return originalImportNode.call(opt_doc, node, deep);
+      }
       clone = originalImportNode.call(opt_doc, node, false);
-    else
+    } else {
       clone = originalCloneNode.call(node, false);
+    }
 
     if (deep) {
       for (var child = node.firstChild; child; child = child.nextSibling) {
